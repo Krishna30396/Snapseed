@@ -264,7 +264,6 @@ async function sendToContact(
   if (tab.id === undefined) return { ok: false, error: 'Could not open the chat tab' }
   await chrome.tabs.update(tab.id, { active: true })
   if (tab.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true })
-  await ensureInjector(tab.id, platform)
 
   const inject: Msg = {
     type: 'open-inject',
@@ -273,7 +272,7 @@ async function sendToContact(
     caption,
     autoSend: AUTO_SEND[platform],
   }
-  return relayWhenReady(tab.id, inject)
+  return relayWhenReady(tab.id, inject, platform)
 }
 
 /** Inject the platform's content script into a tab that was open before the
@@ -294,15 +293,21 @@ async function ensureInjector(tabId: number, platform: DraftPlatform): Promise<v
   }
 }
 
-/** The injector script may not be alive yet on a cold tab — retry the message
- *  until it answers or the budget runs out. The injector itself then polls the
- *  composer, so total cold-start budget ≈ 30s message + 20s composer. */
-async function relayWhenReady(tabId: number, msg: Msg): Promise<SendResult> {
+/** Relay a message to the app tab, injecting the content script only if the tab
+ *  has no receiver yet (a tab open before install). Injecting unconditionally
+ *  would double-register the injector and make one copy log a spurious
+ *  clipboard fallback while the other succeeds. */
+async function relayWhenReady(tabId: number, msg: Msg, platform?: DraftPlatform): Promise<SendResult> {
   const deadline = Date.now() + 30000
+  let injected = false
   for (;;) {
     try {
       return (await chrome.tabs.sendMessage(tabId, msg)) as SendResult
     } catch {
+      if (!injected && platform) {
+        await ensureInjector(tabId, platform)
+        injected = true
+      }
       if (Date.now() > deadline) {
         return { ok: false, error: 'The chat did not load — image copied, press Ctrl+V there' }
       }
