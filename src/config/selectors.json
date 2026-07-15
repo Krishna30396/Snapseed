@@ -1,6 +1,22 @@
 {
-  "version": 3,
+  "version": 4,
   "whatsapp": {
+    "search": [
+      "div[aria-label='Search input textbox'][contenteditable='true']",
+      "div[contenteditable='true'][data-tab='3']",
+      "div[title='Search input textbox'][contenteditable='true']"
+    ],
+    "searchClear": [
+      "button[aria-label='Cancel search']",
+      "span[data-icon='x-alt']"
+    ],
+    "chatListRow": [
+      "div[aria-label='Chat list'] div[role='listitem']",
+      "#pane-side div[role='listitem']"
+    ],
+    "chatRowName": [
+      "span[title]"
+    ],
     "composer": [
       "footer div[contenteditable='true'][data-tab]",
       "div[contenteditable='true'][data-tab='10']",
@@ -15,13 +31,33 @@
       "div[data-animate-media-preview]",
       "span[data-icon='send']",
       "div[aria-label='Send']"
+    ],
+    "sendButton": [
+      "div[aria-label='Send'][role='button']",
+      "span[data-icon='send']",
+      "span[data-icon='send-light']"
     ]
   },
   "telegram": {
+    "search": [
+      "input#telegram-search-input",
+      ".chatlist-container input.form-control",
+      ".input-search input"
+    ],
+    "chatListRow": [
+      "#chatlist .chatlist-chat",
+      "ul.chatlist a.chatlist-chat",
+      ".chatlist .ListItem-button"
+    ],
+    "chatRowName": [
+      ".user-title .peer-title",
+      ".dialog-title .peer-title",
+      ".info .title"
+    ],
     "composer": [
       ".input-message-input[contenteditable='true']",
       "div[contenteditable='true'].input-message-input",
-      ".composer_rich_textarea[contenteditable='true']"
+      "#editable-message-text"
     ],
     "captionInput": [
       ".popup.active .input-message-input[contenteditable='true']",
@@ -32,6 +68,12 @@
       ".popup-send-photo",
       ".popup.popup-new-media",
       ".popup .btn-primary"
+    ],
+    "sendButton": [
+      ".popup-send-photo .btn-primary",
+      "button.send",
+      ".Composer button.send",
+      ".btn-send"
     ]
   }
 }

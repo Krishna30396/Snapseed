@@ -10,19 +10,44 @@ export interface SnipRect {
 export type DraftChannel = 'whatsapp' | 'telegram'
 export type PlatformId = 'whatsapp' | 'telegram' | 'gmail' | 'slack'
 
+export type DraftPlatform = 'whatsapp' | 'telegram'
+
+/** A chat the user can send to: a saved contact (phone) or a recent chat
+ *  scraped from the open app tab (name only, opened via in-app search). */
+export interface ChatTarget {
+  name: string
+  phone?: string
+}
+
 export type Msg =
   | { type: 'snip-start' }
   | { type: 'snip-capture'; rect: SnipRect; dpr: number }
   | { type: 'record-start' }
-  | { type: 'send-draft'; channel: DraftChannel; phone: string; caption: string }
-  | { type: 'inject'; dataUrl: string; caption: string }
   | { type: 'open-platform'; platform: PlatformId }
   | { type: 'paste-hint' }
+  // bar → background
+  | { type: 'list-recent'; platform: DraftPlatform }
+  | { type: 'send-to-contact'; platform: DraftPlatform; target: ChatTarget; caption: string }
+  // background → app-tab injector
+  | { type: 'scrape-recent' }
+  | { type: 'open-inject'; target: ChatTarget; dataUrl: string; caption: string; autoSend: boolean }
 
 export interface SendResult {
   ok: boolean
   /** user-facing failure text; the image is already on the clipboard */
   error?: string
+}
+
+export interface RecentResult {
+  ok: boolean
+  contacts: ChatTarget[]
+  error?: string
+}
+
+/** WhatsApp drafts (human presses Send — ToS survival); Telegram auto-sends. */
+export const AUTO_SEND: Record<DraftPlatform, boolean> = {
+  whatsapp: false,
+  telegram: true,
 }
 
 export interface CaptureRecord {

@@ -3,11 +3,15 @@
 
 import { saveToHistory } from '../lib/history'
 import {
+  AUTO_SEND,
   CURRENT_CAPTURE_KEY,
   PASTE_HINT_KEY,
   RECORD_REQUEST_KEY,
   type CaptureRecord,
+  type ChatTarget,
+  type DraftPlatform,
   type Msg,
+  type RecentResult,
   type SendResult,
   type SnipRect,
 } from '../lib/messages'
@@ -94,11 +98,21 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
     )
     return true
   }
-  if (msg.type === 'send-draft') {
-    sendDraft(msg.channel, msg.phone, msg.caption).then(
+  if (msg.type === 'list-recent') {
+    listRecent(msg.platform).then(
       (result) => sendResponse(result),
       (err: unknown) => {
-        console.error(`[SnapSend] ${msg.channel} send failed`, err)
+        console.error(`[SnapSend] ${msg.platform} list-recent failed`, err)
+        sendResponse({ ok: false, contacts: [], error: 'Could not read recent chats' } satisfies RecentResult)
+      },
+    )
+    return true
+  }
+  if (msg.type === 'send-to-contact') {
+    sendToContact(msg.platform, msg.target, msg.caption).then(
+      (result) => sendResponse(result),
+      (err: unknown) => {
+        console.error(`[SnapSend] ${msg.platform} send-to-contact failed`, err)
         sendResponse({
           ok: false,
           error: 'Could not reach the chat — image copied, press Ctrl+V there',
@@ -110,37 +124,62 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
   return
 })
 
-const CHANNELS = {
-  whatsapp: {
-    chatUrl: (phone: string) => `https://web.whatsapp.com/send?phone=${phone}`,
-    tabPattern: '*://web.whatsapp.com/*',
-  },
-  telegram: {
-    chatUrl: (phone: string) =>
-      `https://web.telegram.org/k/#?tgaddr=${encodeURIComponent(`tg://resolve?phone=${phone}`)}`,
-    tabPattern: '*://web.telegram.org/*',
-  },
-} as const
+const TAB_PATTERN: Record<DraftPlatform, string> = {
+  whatsapp: '*://web.whatsapp.com/*',
+  telegram: '*://web.telegram.org/*',
+}
 
-async function sendDraft(
-  channel: keyof typeof CHANNELS,
-  phone: string,
+const APP_URL: Record<DraftPlatform, string> = {
+  whatsapp: 'https://web.whatsapp.com/',
+  telegram: 'https://web.telegram.org/a/',
+}
+
+async function ensureAppTab(platform: DraftPlatform): Promise<chrome.tabs.Tab> {
+  const existing = (await chrome.tabs.query({ url: TAB_PATTERN[platform] }))[0]
+  if (existing?.id !== undefined) return existing
+  return chrome.tabs.create({ url: APP_URL[platform], active: false })
+}
+
+/** Ask the open app tab for its recent-chat list so the bar can show it. */
+async function listRecent(platform: DraftPlatform): Promise<RecentResult> {
+  const tab = await ensureAppTab(platform)
+  if (tab.id === undefined) return { ok: false, contacts: [], error: 'Open the app first' }
+  const deadline = Date.now() + 6000
+  for (;;) {
+    try {
+      return (await chrome.tabs.sendMessage(tab.id, { type: 'scrape-recent' } satisfies Msg)) as RecentResult
+    } catch {
+      if (Date.now() > deadline) {
+        return { ok: false, contacts: [], error: 'Open the app tab, then reopen to load recent chats' }
+      }
+      await new Promise((r) => setTimeout(r, 600))
+    }
+  }
+}
+
+/** Open the chosen chat in the app tab, inject the capture + caption, and
+ *  (Telegram) auto-send or (WhatsApp) leave the draft for the human to send. */
+async function sendToContact(
+  platform: DraftPlatform,
+  target: ChatTarget,
   caption: string,
 ): Promise<SendResult> {
   const found = await chrome.storage.session.get(CURRENT_CAPTURE_KEY)
   const record = found[CURRENT_CAPTURE_KEY] as CaptureRecord | undefined
   if (!record) return { ok: false, error: 'No capture to send — snip something first' }
 
-  const site = CHANNELS[channel]
-  const url = site.chatUrl(phone)
-  const existing = (await chrome.tabs.query({ url: site.tabPattern }))[0]
-  const tab = existing?.id !== undefined
-    ? await chrome.tabs.update(existing.id, { url, active: true })
-    : await chrome.tabs.create({ url })
-  if (tab?.id === undefined) return { ok: false, error: 'Could not open the chat tab' }
-  await chrome.windows.update(tab.windowId, { focused: true })
+  const tab = await ensureAppTab(platform)
+  if (tab.id === undefined) return { ok: false, error: 'Could not open the chat tab' }
+  await chrome.tabs.update(tab.id, { active: true })
+  if (tab.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true })
 
-  const inject: Msg = { type: 'inject', dataUrl: record.dataUrl, caption }
+  const inject: Msg = {
+    type: 'open-inject',
+    target,
+    dataUrl: record.dataUrl,
+    caption,
+    autoSend: AUTO_SEND[platform],
+  }
   return relayWhenReady(tab.id, inject)
 }
 

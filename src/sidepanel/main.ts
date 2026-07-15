@@ -85,13 +85,26 @@ function sendDraft(target: PickedTarget): void {
       }),
     )
     .then(() => {
-      setStatus(`Opening draft for ${target.name}…`)
-      const msg: Msg = { type: 'send-draft', channel: target.channel, phone: target.phone, caption }
+      setStatus(`Opening ${target.name}'s chat…`)
+      const msg: Msg = {
+        type: 'send-to-contact',
+        platform: target.channel,
+        target: { name: target.name, phone: target.phone },
+        caption,
+      }
       return chrome.runtime.sendMessage(msg) as Promise<SendResult>
     })
     .then(
       (res) => {
-        setStatus(res.ok ? 'Draft ready — press Send in the chat' : (res.error ?? 'Failed'))
+        if (res.ok) {
+          setStatus(
+            target.channel === 'telegram'
+              ? `Sent to ${target.name} ✓`
+              : `Draft ready in ${target.name}'s chat — press Send`,
+          )
+        } else {
+          setStatus(res.error ?? 'Could not reach the chat — image copied, press Ctrl+V there')
+        }
       },
       () => setStatus('Could not reach the chat — image copied, press Ctrl+V there'),
     )

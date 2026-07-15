@@ -1,14 +1,15 @@
-import { CURRENT_CAPTURE_KEY, type PlatformId } from '../lib/messages'
+import { CURRENT_CAPTURE_KEY, type DraftPlatform, type PlatformId } from '../lib/messages'
 import { type BarState, getBarState, setBarState } from '../lib/storage'
 import { copyCurrentCapture } from './clipboard'
+import { openContactPicker } from './contact-picker'
 import { startSnip } from './snip-overlay'
 import { toast } from './toast'
 
-const PLATFORMS: { id: PlatformId; label: string; short: string; color: string }[] = [
-  { id: 'whatsapp', label: 'WhatsApp', short: 'W', color: '#25D366' },
-  { id: 'telegram', label: 'Telegram', short: 'T', color: '#2AABEE' },
-  { id: 'gmail', label: 'Gmail', short: 'G', color: '#EA4335' },
-  { id: 'slack', label: 'Slack', short: 'S', color: '#611F69' },
+const PLATFORMS: { id: PlatformId; label: string; short: string; color: string; picker: boolean }[] = [
+  { id: 'whatsapp', label: 'WhatsApp', short: 'W', color: '#25D366', picker: true },
+  { id: 'telegram', label: 'Telegram', short: 'T', color: '#2AABEE', picker: true },
+  { id: 'gmail', label: 'Gmail', short: 'G', color: '#EA4335', picker: false },
+  { id: 'slack', label: 'Slack', short: 'S', color: '#611F69', picker: false },
 ]
 
 const HOST_ID = 'snapsend-bar-host'
@@ -65,6 +66,45 @@ const CSS = `
 .plat:hover { transform: scale(1.12); }
 .collapsed .btn, .collapsed .hide, .collapsed .send-strip { display: none; }
 .collapsed .pill { padding: 4px; }
+
+.picker {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  width: 300px; max-width: 92vw;
+}
+.pk-card {
+  background: #1A1C22; color: #F5F6F8;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.4); padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pk-head { display: flex; align-items: center; justify-content: space-between; }
+.pk-title { font: 600 13px/1 system-ui, sans-serif; }
+.pk-close { background: none; border: none; color: rgba(245,246,248,.6); cursor: pointer; font-size: 13px; padding: 2px 6px; }
+.pk-close:hover { color: #F5F6F8; }
+.pk-preview { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; max-height: 140px; display: flex; align-items: center; justify-content: center; background: #0e0f13; }
+.pk-preview img { max-width: 100%; max-height: 140px; display: block; }
+.pk-caption, .pk-search {
+  width: 100%; box-sizing: border-box; background: #0e0f13; color: #F5F6F8;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 8px;
+  font: 400 13px/1.2 system-ui, sans-serif;
+}
+.pk-caption:focus, .pk-search:focus { outline: none; border-color: #FFB020; }
+.pk-list { max-height: 168px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.pk-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; color: inherit; cursor: pointer;
+  padding: 6px; border-radius: 8px; font: 500 13px/1.2 system-ui, sans-serif;
+}
+.pk-row:hover { background: rgba(255,255,255,.08); }
+.pk-row.sel { background: rgba(255,176,32,.18); box-shadow: inset 0 0 0 1px #FFB020; }
+.pk-avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: #FFB020; color: #1A1C22; font: 600 13px/28px system-ui, sans-serif; text-align: center;
+}
+.pk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-hint { margin: 6px 2px; font: 400 12px/1.4 system-ui, sans-serif; color: rgba(245,246,248,.6); }
+.pk-status { margin: 0; min-height: 15px; font: 500 12px/1.3 system-ui, sans-serif; color: #FFB020; }
+.collapsed .picker { display: none; }
 @media (prefers-reduced-motion: reduce) { .pill, .lens, .plat { transition: none; } }
 `
 
@@ -114,18 +154,19 @@ function wireSendStrip(wrap: HTMLElement): void {
     btn.addEventListener('click', () => {
       // Copy NOW, while the page has focus from this click — the most reliable
       // moment to put the image on the clipboard for the paste on the far side.
-      copyCurrentCapture()
-        .catch(() => undefined)
-        .then(() => {
-          toast(`Opening ${p.label}…`)
-          return chrome.runtime.sendMessage({ type: 'open-platform', platform: p.id })
-        })
-        .then(
-          (res: { ok: boolean; error?: string }) => {
-            if (!res?.ok) toast(res?.error ?? `Could not open ${p.label}`)
-          },
-          () => toast(`Could not open ${p.label}`),
-        )
+      copyCurrentCapture().catch(() => undefined)
+      if (p.picker) {
+        const root = wrap.getRootNode()
+        if (root instanceof ShadowRoot) openContactPicker(root, p.id as DraftPlatform)
+        return
+      }
+      toast(`Opening ${p.label}…`)
+      chrome.runtime.sendMessage({ type: 'open-platform', platform: p.id }).then(
+        (res: { ok: boolean; error?: string }) => {
+          if (!res?.ok) toast(res?.error ?? `Could not open ${p.label}`)
+        },
+        () => toast(`Could not open ${p.label}`),
+      )
     })
     strip.append(btn)
   }
