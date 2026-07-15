@@ -64,8 +64,8 @@ chrome.commands.onCommand.addListener((command, tab) => {
 chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
   if (msg.type === 'snip-capture') {
     const tab = sender.tab
-    if (tab?.id === undefined || tab.windowId === undefined) return
-    captureAndShow(tab.id, tab.windowId, msg.rect, msg.dpr).then(
+    if (tab?.windowId === undefined) return
+    captureAndShow(tab.windowId, msg.rect, msg.dpr).then(
       () => sendResponse({ ok: true }),
       (err: unknown) => {
         console.error('[SnapSend] capture failed', err)
@@ -294,7 +294,7 @@ async function relayWhenReady(tabId: number, msg: Msg): Promise<SendResult> {
   }
 }
 
-async function captureAndShow(tabId: number, windowId: number, rect: SnipRect, dpr: number): Promise<void> {
+async function captureAndShow(windowId: number, rect: SnipRect, dpr: number): Promise<void> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
   const { record, blob } = await cropToRecord(dataUrl, rect, dpr)
   await chrome.storage.session.set({ [CURRENT_CAPTURE_KEY]: record })
@@ -305,11 +305,9 @@ async function captureAndShow(tabId: number, windowId: number, rect: SnipRect, d
     height: record.height,
     createdAt: record.createdAt,
   })
-  // A failed panel open must not fail the capture — the bar's send strip and
-  // the clipboard copy already give the user a working result.
-  await openPanel(tabId).catch((err: unknown) => {
-    console.warn('[SnapSend] panel did not open after snip', err)
-  })
+  // Deliberately do NOT open the side panel here — the user wants to stay on
+  // their page and drive everything from the bar (snip → pick app → send). The
+  // panel is still available from the toolbar icon for annotation.
 }
 
 const PLATFORM_TABS: Record<

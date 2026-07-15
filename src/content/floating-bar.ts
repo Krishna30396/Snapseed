@@ -81,8 +81,8 @@ const CSS = `
 .pk-title { font: 600 13px/1 system-ui, sans-serif; }
 .pk-close { background: none; border: none; color: rgba(245,246,248,.6); cursor: pointer; font-size: 13px; padding: 2px 6px; }
 .pk-close:hover { color: #F5F6F8; }
-.pk-preview { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; max-height: 140px; display: flex; align-items: center; justify-content: center; background: #0e0f13; }
-.pk-preview img { max-width: 100%; max-height: 140px; display: block; }
+.pk-preview { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; height: 74px; display: flex; align-items: center; justify-content: center; background: #0e0f13; }
+.pk-preview img { max-width: 100%; max-height: 74px; display: block; }
 .pk-caption, .pk-search {
   width: 100%; box-sizing: border-box; background: #0e0f13; color: #F5F6F8;
   border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 8px;

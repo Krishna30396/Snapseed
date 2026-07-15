@@ -123,18 +123,70 @@ async function openAndInject(
   // WhatsApp path leaves the draft staged with Send visible — the human clicks.
 }
 
-/** Opens the target chat: by in-app search on the scraped name, or (saved
- *  contacts) by the phone number typed into the same search box. */
+/** Opens the target chat. Preferred path: find its row in the visible list and
+ *  click it with a real mouse-event sequence (React rows ignore .click()).
+ *  Fallback: type the name/number into the search box and open the first hit. */
 async function openChat(sel: Record<string, string[]>, target: ChatTarget): Promise<void> {
+  if (!target.phone) {
+    const row = findRowByName(sel, target.name)
+    if (row) {
+      realClick(row)
+      await waitForChatOpen(sel)
+      return
+    }
+  }
+  await searchAndOpen(sel, target)
+  await waitForChatOpen(sel)
+}
+
+function findRowByName(sel: Record<string, string[]>, name: string): HTMLElement | null {
+  const rows = queryAll(sel['chatListRow'])
+  const wanted = name.trim().toLowerCase()
+  for (const row of rows) {
+    if (firstText(row, sel['chatRowName']).trim().toLowerCase() === wanted) return row
+  }
+  return null
+}
+
+async function searchAndOpen(sel: Record<string, string[]>, target: ChatTarget): Promise<void> {
   const search = await waitFor(sel['search'], 10000)
-  search.focus()
-  selectAll(search)
-  const query = target.phone ?? target.name
-  document.execCommand('insertText', false, query)
-  await delay(1200) // let results populate
-  const row = await waitFor(sel['chatListRow'], 6000)
-  row.click()
-  await delay(600)
+  setFieldValue(search, target.phone ?? target.name)
+  await delay(1400) // let results populate
+  const row = queryAll(sel['chatListRow'])[0]
+  if (!row) throw new Error('no search result to open')
+  realClick(row)
+}
+
+/** Confirms a chat actually opened by waiting for the message composer. */
+async function waitForChatOpen(sel: Record<string, string[]>): Promise<void> {
+  await waitFor(sel['composer'], 10000)
+  await delay(300)
+}
+
+/** Full synthetic pointer+mouse sequence at the element's centre — this is what
+ *  WhatsApp/Telegram list rows respond to (a bare .click() does nothing). */
+function realClick(el: HTMLElement): void {
+  const r = el.getBoundingClientRect()
+  const x = r.left + r.width / 2
+  const y = r.top + r.height / 2
+  const target = document.elementFromPoint(x, y) ?? el
+  const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, view: window }
+  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const) {
+    const Ctor = type.startsWith('pointer') ? PointerEvent : MouseEvent
+    target.dispatchEvent(new Ctor(type, opts))
+  }
+}
+
+function setFieldValue(el: HTMLElement, value: string): void {
+  el.focus()
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    const setter = Object.getOwnPropertyDescriptor(el.constructor.prototype, 'value')?.set
+    setter?.call(el, value)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    return
+  }
+  selectAll(el)
+  document.execCommand('insertText', false, value)
 }
 
 async function fallback(site: Site): Promise<void> {

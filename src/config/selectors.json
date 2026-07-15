@@ -2,19 +2,18 @@
   "version": 5,
   "whatsapp": {
     "search": [
-      "div[aria-label='Search input textbox'][contenteditable='true']",
+      "input[aria-label='Search or start a new chat']",
       "div[contenteditable='true'][data-tab='3']",
-      "#side div[contenteditable='true']"
+      "#side input[type='text']"
     ],
     "chatListRow": [
+      "#pane-side [role='row']",
       "#pane-side div[role='listitem']",
-      "div[aria-label='Chat list'] div[role='listitem']",
-      "#pane-side [role='row']"
+      "#pane-side [data-testid='cell-frame-container']"
     ],
     "chatRowName": [
-      "span[title][dir='auto']",
       "span[title]",
-      "span[dir='auto']"
+      "span[dir='auto'][title]"
     ],
     "rowAvatar": [
       "img[src]"
