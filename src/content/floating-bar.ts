@@ -89,6 +89,27 @@ const CSS = `
   font: 400 13px/1.2 system-ui, sans-serif;
 }
 .pk-caption:focus, .pk-search:focus { outline: none; border-color: #FFB020; }
+.pk-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 4px;
+}
+.pk-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: none; color: inherit; cursor: pointer;
+  padding: 6px 2px; border-radius: 10px;
+}
+.pk-tile:hover { background: rgba(255,255,255,.08); }
+.pk-tile.sel { background: rgba(255,176,32,.18); box-shadow: inset 0 0 0 1px #FFB020; }
+.pk-tile-name {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 500 10px/1.2 system-ui, sans-serif; text-align: center;
+}
+.pk-more {
+  background: none; border: none; color: #FFB020; cursor: pointer;
+  font: 600 12px/1 system-ui, sans-serif; padding: 6px; align-self: center;
+}
+.pk-more:hover { text-decoration: underline; }
+.pk-expand { display: flex; flex-direction: column; gap: 8px; }
+.pk-expand[hidden] { display: none; }
 .pk-list { max-height: 168px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .pk-row {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -98,12 +119,13 @@ const CSS = `
 .pk-row:hover { background: rgba(255,255,255,.08); }
 .pk-row.sel { background: rgba(255,176,32,.18); box-shadow: inset 0 0 0 1px #FFB020; }
 .pk-avatar {
-  width: 28px; height: 28px; border-radius: 50%; flex: none;
-  background: #FFB020; color: #1A1C22; font: 600 13px/28px system-ui, sans-serif; text-align: center;
+  border-radius: 50%; flex: none;
+  background: #FFB020; color: #1A1C22; font: 600 15px/1 system-ui, sans-serif;
+  text-align: center; display: inline-block;
 }
 .pk-avatar-img { object-fit: cover; background: #0e0f13; }
 .pk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pk-hint { margin: 6px 2px; font: 400 12px/1.4 system-ui, sans-serif; color: rgba(245,246,248,.6); }
+.pk-hint { margin: 6px 2px; font: 400 12px/1.4 system-ui, sans-serif; color: rgba(245,246,248,.6); grid-column: 1 / -1; }
 .pk-status { margin: 0; min-height: 15px; font: 500 12px/1.3 system-ui, sans-serif; color: #FFB020; }
 .collapsed .picker { display: none; }
 @media (prefers-reduced-motion: reduce) { .pill, .lens, .plat { transition: none; } }

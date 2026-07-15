@@ -1,10 +1,13 @@
 // In-bar contact picker. Clicking WhatsApp/Telegram on the send strip opens
 // this popover above the bar: the capture preview, a caption field, and the
-// recent chats read from the open app tab (merged with saved contacts). Pick a
-// contact, type a caption, press Enter → it goes to that person's chat
+// recent chats read from the open app tab (merged with saved contacts).
+//
+// Default view is a compact GRID of profile-icon avatars (no scrollbar). The
+// searchable, scrollable full list + number entry appear only under "More".
+// Pick a contact, type a caption, press Enter → it goes to that person's chat
 // (Telegram auto-sends; WhatsApp is left as a draft for the human to send).
 
-import { listContacts } from '../lib/contacts'
+import { listContacts, normalizePhone } from '../lib/contacts'
 import {
   AUTO_SEND,
   CURRENT_CAPTURE_KEY,
@@ -17,6 +20,12 @@ import {
 } from '../lib/messages'
 
 const LABEL: Record<DraftPlatform, string> = { whatsapp: 'WhatsApp', telegram: 'Telegram' }
+const GRID_COUNT = 8
+
+interface PickerState {
+  selected: ChatTarget | null
+  all: ChatTarget[]
+}
 
 export function openContactPicker(shadow: ShadowRoot, platform: DraftPlatform): void {
   shadow.querySelector('.picker')?.remove()
@@ -29,19 +38,24 @@ export function openContactPicker(shadow: ShadowRoot, platform: DraftPlatform): 
         <button class="pk-close" title="Close">&#10005;</button>
       </div>
       <div class="pk-preview"><img alt="Capture to send" /></div>
-      <input class="pk-caption" placeholder="Add a caption, then pick a contact + Enter" />
-      <input class="pk-search" placeholder="Search recent chats & contacts" />
-      <div class="pk-list"><p class="pk-hint">Loading recent chats…</p></div>
+      <input class="pk-caption" placeholder="Add a caption…" />
+      <div class="pk-grid"><p class="pk-hint">Loading your chats…</p></div>
+      <button class="pk-more">More contacts &#9662;</button>
+      <div class="pk-expand" hidden>
+        <input class="pk-search" placeholder="Search, or type a number" />
+        <div class="pk-list"></div>
+      </div>
       <p class="pk-status" role="status"></p>
     </div>`
   shadow.querySelector('.wrap')?.append(el)
 
+  const state: PickerState = { selected: null, all: [] }
   loadPreview(el)
   wireClose(el)
-  const state = { selected: null as ChatTarget | null, all: [] as ChatTarget[] }
+  wireMore(el, state)
   wireCaptionEnter(el, platform, state)
-  wireSearch(el, state)
-  loadContacts(el, platform, state)
+  wireSearch(el, platform, state)
+  loadContacts(el, state)
 }
 
 function loadPreview(el: HTMLElement): void {
@@ -57,31 +71,39 @@ function wireClose(el: HTMLElement): void {
   el.querySelector('.pk-close')?.addEventListener('click', () => el.remove())
 }
 
-function loadContacts(
-  el: HTMLElement,
-  platform: DraftPlatform,
-  state: { selected: ChatTarget | null; all: ChatTarget[] },
-): void {
-  // Three sources, fastest first: cached recent (instant) + saved contacts,
-  // then a fresh scrape from the app tab that merges in when it arrives.
-  Promise.all([cachedRecent(platform), listContacts()]).then(([cached, saved]) => {
-    const savedTargets = saved
-      .filter((c) => c.channel === platform)
-      .map((c) => ({ name: c.name, phone: c.phone }))
-    state.all = dedupe([...cached, ...savedTargets])
-    if (state.all.length) applyFilter(el, state)
-    else el.querySelector('.pk-list')?.replaceChildren(hint('Loading your recent chats…'))
+/** "More" reveals the search box + full scrollable list (built lazily). */
+function wireMore(el: HTMLElement, state: PickerState): void {
+  el.querySelector('.pk-more')?.addEventListener('click', () => {
+    const expand = el.querySelector<HTMLElement>('.pk-expand')
+    const more = el.querySelector<HTMLElement>('.pk-more')
+    if (!expand || !more) return
+    const show = expand.hidden
+    expand.hidden = !show
+    more.innerHTML = show ? 'Fewer contacts &#9652;' : 'More contacts &#9662;'
+    if (show) {
+      renderList(el, state.all, state)
+      el.querySelector<HTMLInputElement>('.pk-search')?.focus()
+    }
+  })
+}
+
+function loadContacts(el: HTMLElement, state: PickerState): void {
+  const platform = currentPlatform(el)
+  // Cached recent + saved contacts render instantly; the live scrape merges in.
+  Promise.all([cachedRecent(platform), savedTargets(platform)]).then(([cached, saved]) => {
+    state.all = dedupe([...state.all, ...cached, ...saved])
+    renderGrid(el, state)
+    if (!state.all.length) el.querySelector('.pk-grid')?.replaceChildren(hint('Loading your chats…'))
   })
   ;(chrome.runtime.sendMessage({ type: 'list-recent', platform }) as Promise<RecentResult>).then(
     (recent) => {
       if (recent.ok && recent.contacts.length) {
         state.all = dedupe([...recent.contacts, ...state.all])
-        applyFilter(el, state)
-        setStatus(el, '')
+        renderGrid(el, state)
+        if (!el.querySelector<HTMLElement>('.pk-expand')?.hidden) renderList(el, state.all, state)
       } else if (!state.all.length) {
-        setStatus(el, recent.error ?? 'Open the app, then reopen this to see recent chats')
-        el.querySelector('.pk-list')?.replaceChildren(
-          hint('No recent chats yet — is the app open and loaded? You can also search a name.'),
+        el.querySelector('.pk-grid')?.replaceChildren(
+          hint('No chats yet — is the app open? Use More to search or type a number.'),
         )
       }
     },
@@ -89,6 +111,10 @@ function loadContacts(
       if (!state.all.length) setStatus(el, 'Could not read recent chats')
     },
   )
+}
+
+function currentPlatform(el: HTMLElement): DraftPlatform {
+  return el.querySelector('.pk-title')?.textContent?.includes('Telegram') ? 'telegram' : 'whatsapp'
 }
 
 async function cachedRecent(platform: DraftPlatform): Promise<ChatTarget[]> {
@@ -101,12 +127,13 @@ async function cachedRecent(platform: DraftPlatform): Promise<ChatTarget[]> {
   }
 }
 
-function applyFilter(el: HTMLElement, state: { selected: ChatTarget | null; all: ChatTarget[] }): void {
-  const term = el.querySelector<HTMLInputElement>('.pk-search')?.value.trim().toLowerCase() ?? ''
-  const shown = term
-    ? state.all.filter((c) => c.name.toLowerCase().includes(term) || (c.phone ?? '').includes(term))
-    : state.all
-  renderList(el, shown, state)
+async function savedTargets(platform: DraftPlatform): Promise<ChatTarget[]> {
+  try {
+    const saved = await listContacts()
+    return saved.filter((c) => c.channel === platform).map((c) => ({ name: c.name, phone: c.phone }))
+  } catch {
+    return []
+  }
 }
 
 function dedupe(list: ChatTarget[]): ChatTarget[] {
@@ -122,46 +149,79 @@ function dedupe(list: ChatTarget[]): ChatTarget[] {
   return out
 }
 
-function wireSearch(
-  el: HTMLElement,
-  state: { selected: ChatTarget | null; all: ChatTarget[] },
-): void {
-  el.querySelector<HTMLInputElement>('.pk-search')?.addEventListener('input', () => applyFilter(el, state))
+/** Compact avatar-icon grid (top GRID_COUNT), no scrollbar. */
+function renderGrid(el: HTMLElement, state: PickerState): void {
+  const grid = el.querySelector<HTMLElement>('.pk-grid')
+  if (!grid) return
+  const shown = state.all.slice(0, GRID_COUNT)
+  if (!shown.length) return
+  grid.replaceChildren(...shown.map((c) => gridTile(el, c, state)))
 }
 
-function renderList(
-  el: HTMLElement,
-  contacts: ChatTarget[],
-  state: { selected: ChatTarget | null; all: ChatTarget[] },
-): void {
+function gridTile(el: HTMLElement, c: ChatTarget, state: PickerState): HTMLElement {
+  const btn = document.createElement('button')
+  btn.className = 'pk-tile'
+  btn.title = c.name
+  if (state.selected?.name === c.name) btn.classList.add('sel')
+  btn.append(avatarEl(c, 44), tileName(c.name))
+  btn.addEventListener('click', () => select(el, c, state))
+  return btn
+}
+
+function tileName(name: string): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'pk-tile-name'
+  span.textContent = name
+  return span
+}
+
+/** Full scrollable list (rows), shown only under "More". */
+function renderList(el: HTMLElement, contacts: ChatTarget[], state: PickerState): void {
   const list = el.querySelector<HTMLElement>('.pk-list')
   if (!list) return
   if (!contacts.length) {
-    list.replaceChildren(hint('No matches — type a name to search in the app'))
+    list.replaceChildren(hint('No matches — type a full number to send to a new contact'))
     return
   }
   list.replaceChildren(
     ...contacts.map((c) => {
       const row = document.createElement('button')
       row.className = 'pk-row'
-      row.append(avatarEl(c), nameEl(c.name))
+      row.append(avatarEl(c, 28), nameEl(c.name))
       if (state.selected?.name === c.name) row.classList.add('sel')
-      row.addEventListener('click', () => {
-        state.selected = c
-        list.querySelectorAll('.pk-row').forEach((r) => r.classList.remove('sel'))
-        row.classList.add('sel')
-        setStatus(el, `${c.name} selected — press Enter to send`)
-      })
+      row.addEventListener('click', () => select(el, c, state))
       return row
     }),
   )
 }
 
-function wireCaptionEnter(
-  el: HTMLElement,
-  platform: DraftPlatform,
-  state: { selected: ChatTarget | null; all: ChatTarget[] },
-): void {
+function select(el: HTMLElement, c: ChatTarget, state: PickerState): void {
+  state.selected = c
+  el.querySelectorAll('.pk-tile, .pk-row').forEach((r) => r.classList.remove('sel'))
+  el.querySelectorAll('.pk-tile, .pk-row').forEach((r) => {
+    if (r.getAttribute('title') === c.name || r.textContent?.trim() === c.name) r.classList.add('sel')
+  })
+  setStatus(el, `${c.name} — press Enter to send`)
+}
+
+function wireSearch(el: HTMLElement, _platform: DraftPlatform, state: PickerState): void {
+  el.querySelector<HTMLInputElement>('.pk-search')?.addEventListener('input', (ev) => {
+    const raw = (ev.target as HTMLInputElement).value.trim()
+    const term = raw.toLowerCase()
+    // a bare number becomes a send-to-number target
+    if (/^[+\d][\d\s-]{5,}$/.test(raw)) {
+      const phone = normalizePhone(raw)
+      state.selected = { name: `+${phone}`, phone }
+      renderList(el, [state.selected], state)
+      setStatus(el, `New number +${phone} — press Enter to send`)
+      return
+    }
+    const shown = term ? state.all.filter((c) => c.name.toLowerCase().includes(term)) : state.all
+    renderList(el, shown, state)
+  })
+}
+
+function wireCaptionEnter(el: HTMLElement, platform: DraftPlatform, state: PickerState): void {
   const send = () => {
     if (!state.selected) {
       setStatus(el, 'Pick a contact first')
@@ -173,12 +233,7 @@ function wireCaptionEnter(
     chrome.runtime.sendMessage({ type: 'send-to-contact', platform, target, caption }).then(
       (res: SendResult) => {
         if (res.ok) {
-          setStatus(
-            el,
-            AUTO_SEND[platform]
-              ? `Sent to ${target.name} ✓`
-              : `Draft ready in ${target.name}'s chat — press Send`,
-          )
+          setStatus(el, AUTO_SEND[platform] ? `Sent to ${target.name} ✓` : `Draft ready in ${target.name}'s chat`)
           setTimeout(() => el.remove(), 1600)
         } else {
           setStatus(el, res.error ?? 'Send failed')
@@ -197,16 +252,21 @@ function wireCaptionEnter(
   }
 }
 
-function avatarEl(c: ChatTarget): HTMLElement {
+function avatarEl(c: ChatTarget, size: number): HTMLElement {
   if (c.avatar) {
     const img = document.createElement('img')
     img.className = 'pk-avatar pk-avatar-img'
+    img.style.width = `${size}px`
+    img.style.height = `${size}px`
     img.src = c.avatar
     img.alt = ''
     return img
   }
   const span = document.createElement('span')
   span.className = 'pk-avatar'
+  span.style.width = `${size}px`
+  span.style.height = `${size}px`
+  span.style.lineHeight = `${size}px`
   span.textContent = (c.name.trim()[0] ?? '?').toUpperCase()
   return span
 }
