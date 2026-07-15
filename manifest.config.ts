@@ -23,6 +23,17 @@ export default defineManifest({
   side_panel: {
     default_path: 'src/sidepanel/index.html',
   },
+  content_scripts: [
+    {
+      matches: ['http://*/*', 'https://*/*'],
+      exclude_matches: [
+        '*://chromewebstore.google.com/*',
+        '*://microsoftedge.microsoft.com/*',
+      ],
+      js: ['src/content/index.ts'],
+      run_at: 'document_idle',
+    },
+  ],
   commands: {
     'snip-region': {
       suggested_key: { default: 'Alt+Shift+S' },
