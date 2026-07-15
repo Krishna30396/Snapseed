@@ -174,8 +174,11 @@ async function listRecent(platform: DraftPlatform): Promise<RecentResult> {
 }
 
 /** Runs INSIDE the app tab (serialized by executeScript — no outside refs).
- *  Returns recent chats as {name, avatar?} using the passed selector lists. */
-function scrapePage(rowSel: string[], nameSel: string[], avatarSel: string[]): ChatTarget[] {
+ *  Returns recent chats as {name, avatar?}. Profile pics are cross-origin
+ *  (pps.whatsapp.net / Telegram blobs) so the already-loaded <img> taints the
+ *  canvas — we re-load each pic with crossOrigin='anonymous' (which the CDNs
+ *  allow) before drawing, and skip 1×1 lazy-load placeholders. */
+async function scrapePage(rowSel: string[], nameSel: string[], avatarSel: string[]): Promise<ChatTarget[]> {
   const queryAll = (cands: string[]): HTMLElement[] => {
     for (const s of cands) {
       try {
@@ -195,34 +198,48 @@ function scrapePage(rowSel: string[], nameSel: string[], avatarSel: string[]): C
     }
     return ''
   }
-  const avatarOf = (row: HTMLElement, cands: string[]): string | undefined => {
+  const avatarSrc = (row: HTMLElement, cands: string[]): string | undefined => {
     for (const s of cands) {
       const img = row.querySelector<HTMLImageElement>(s)
-      if (!img || !img.complete || !img.naturalWidth) continue
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = 40
-        canvas.height = 40
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return undefined
-        ctx.drawImage(img, 0, 0, 40, 40)
-        return canvas.toDataURL('image/jpeg', 0.7)
-      } catch {
-        return undefined
-      }
+      // naturalWidth <= 1 ⇒ lazy-load placeholder, not the real pic yet
+      if (img?.src && img.naturalWidth > 1) return img.src
     }
     return undefined
   }
-  const out: ChatTarget[] = []
+  const toDataUrl = (src: string): Promise<string | undefined> =>
+    new Promise((resolve) => {
+      if (src.startsWith('data:')) return resolve(src)
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = 40
+          canvas.height = 40
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return resolve(undefined)
+          ctx.drawImage(img, 0, 0, 40, 40)
+          resolve(canvas.toDataURL('image/jpeg', 0.75))
+        } catch {
+          resolve(undefined)
+        }
+      }
+      img.onerror = () => resolve(undefined)
+      img.src = src
+      setTimeout(() => resolve(undefined), 4000)
+    })
+
+  const picked: { name: string; src?: string }[] = []
   const seen = new Set<string>()
   for (const row of queryAll(rowSel).slice(0, 30)) {
     const name = firstText(row, nameSel)
     if (!name || seen.has(name)) continue
     seen.add(name)
-    out.push({ name, avatar: avatarOf(row, avatarSel) })
-    if (out.length >= 12) break
+    picked.push({ name, src: avatarSrc(row, avatarSel) })
+    if (picked.length >= 12) break
   }
-  return out
+  const avatars = await Promise.all(picked.map((p) => (p.src ? toDataUrl(p.src) : Promise.resolve(undefined))))
+  return picked.map((p, i) => ({ name: p.name, avatar: avatars[i] }))
 }
 
 async function cacheRecent(platform: DraftPlatform, contacts: ChatTarget[]): Promise<void> {

@@ -20,7 +20,7 @@ import {
 } from '../lib/messages'
 
 const LABEL: Record<DraftPlatform, string> = { whatsapp: 'WhatsApp', telegram: 'Telegram' }
-const GRID_COUNT = 8
+const GRID_COUNT = 4
 
 interface PickerState {
   selected: ChatTarget | null
@@ -163,7 +163,7 @@ function gridTile(el: HTMLElement, c: ChatTarget, state: PickerState): HTMLEleme
   btn.className = 'pk-tile'
   btn.title = c.name
   if (state.selected?.name === c.name) btn.classList.add('sel')
-  btn.append(avatarEl(c, 44), tileName(c.name))
+  btn.append(avatarEl(c, 40), tileName(c.name))
   btn.addEventListener('click', () => select(el, c, state))
   return btn
 }

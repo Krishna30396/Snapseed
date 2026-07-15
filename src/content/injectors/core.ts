@@ -127,6 +127,9 @@ async function openAndInject(
  *  click it with a real mouse-event sequence (React rows ignore .click()).
  *  Fallback: type the name/number into the search box and open the first hit. */
 async function openChat(sel: Record<string, string[]>, target: ChatTarget): Promise<void> {
+  // Wait for the chat list to actually render before matching a row — the tab
+  // may have just been focused/restored and the list can lag a few seconds.
+  await waitFor(sel['chatListRow'], 15000).catch(() => undefined)
   if (!target.phone) {
     const row = findRowByName(sel, target.name)
     if (row) {

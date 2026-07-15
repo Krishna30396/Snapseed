@@ -24,20 +24,20 @@
       "footer [role='textbox'][contenteditable='true']"
     ],
     "captionInput": [
-      "div[aria-label='Add a caption'][contenteditable='true']",
+      "div[contenteditable='true'][aria-label='Type a message']",
       "div[contenteditable='true'][aria-placeholder='Add a caption']",
-      "div.copyable-area div[contenteditable='true'][data-tab][role='textbox']"
+      "div[aria-label='Add a caption'][contenteditable='true']"
     ],
     "mediaPreview": [
-      "div[data-animate-media-preview]",
-      "span[data-icon='send']",
-      "div[aria-label='Send']"
+      "div[aria-label^='Send']",
+      "span[data-icon='wds-ic-send-filled']",
+      "div[data-animate-media-preview]"
     ],
     "sendButton": [
-      "div[aria-label='Send'][role='button']",
-      "span[data-icon='send']",
-      "span[data-icon='send-light']",
-      "button[aria-label='Send']"
+      "div[aria-label^='Send'][role='button']",
+      "div[aria-label^='Send']",
+      "span[data-icon='wds-ic-send-filled']",
+      "span[data-icon='send']"
     ]
   },
   "telegram": {

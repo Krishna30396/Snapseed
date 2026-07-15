@@ -90,7 +90,7 @@ const CSS = `
 }
 .pk-caption:focus, .pk-search:focus { outline: none; border-color: #FFB020; }
 .pk-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 4px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 4px;
 }
 .pk-tile {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
