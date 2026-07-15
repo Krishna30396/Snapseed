@@ -88,23 +88,32 @@ function normalize(start: { x: number; y: number }, x: number, y: number): SnipR
 }
 
 function requestCapture(rect: SnipRect): void {
-  // Two frames so the overlay is gone before the tab is captured.
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      const msg: Msg = { type: 'snip-capture', rect, dpr: window.devicePixelRatio }
-      chrome.runtime.sendMessage(msg).then(
-        (res: { ok: boolean; error?: string }) => {
-          if (!res?.ok) {
-            toast(res?.error ?? 'Capture failed — try again')
-            return
-          }
-          copyCurrentCapture().then(
-            () => toast('Captured ✓ copied — paste anywhere, or pick an app on the bar'),
-            () => toast('Captured ✓ — pick an app on the bar to send it'),
-          )
-        },
-        () => toast('Capture failed — try again'),
+  // Two frames so the overlay is gone before the tab is captured — raced
+  // against a timeout because rAF stalls completely in occluded/background
+  // windows and would silently swallow the capture.
+  let fired = false
+  const go = () => {
+    if (fired) return
+    fired = true
+    sendCapture(rect)
+  }
+  requestAnimationFrame(() => requestAnimationFrame(go))
+  setTimeout(go, 150)
+}
+
+function sendCapture(rect: SnipRect): void {
+  const msg: Msg = { type: 'snip-capture', rect, dpr: window.devicePixelRatio }
+  chrome.runtime.sendMessage(msg).then(
+    (res: { ok: boolean; error?: string }) => {
+      if (!res?.ok) {
+        toast(res?.error ?? 'Capture failed — try again')
+        return
+      }
+      copyCurrentCapture().then(
+        () => toast('Captured ✓ copied — paste anywhere, or pick an app on the bar'),
+        () => toast('Captured ✓ — pick an app on the bar to send it'),
       )
-    }),
+    },
+    () => toast('Capture failed — try again'),
   )
 }

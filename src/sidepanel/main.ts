@@ -53,6 +53,7 @@ function render(record: CaptureRecord | undefined): void {
   img.onload = () => mountEditor(img)
   img.onerror = () => setStatus('Could not load the capture.')
   img.src = record.dataUrl
+  showRecordCard()
   renderHistory()
 }
 

@@ -1,5 +1,6 @@
 import { CURRENT_CAPTURE_KEY, type PlatformId } from '../lib/messages'
 import { type BarState, getBarState, setBarState } from '../lib/storage'
+import { copyCurrentCapture } from './clipboard'
 import { startSnip } from './snip-overlay'
 import { toast } from './toast'
 
@@ -111,13 +112,20 @@ function wireSendStrip(wrap: HTMLElement): void {
     btn.textContent = p.short
     btn.title = `Send via ${p.label}`
     btn.addEventListener('click', () => {
-      toast(`Opening ${p.label}…`)
-      chrome.runtime.sendMessage({ type: 'open-platform', platform: p.id }).then(
-        (res: { ok: boolean; error?: string }) => {
-          if (!res?.ok) toast(res?.error ?? `Could not open ${p.label}`)
-        },
-        () => toast(`Could not open ${p.label}`),
-      )
+      // Copy NOW, while the page has focus from this click — the most reliable
+      // moment to put the image on the clipboard for the paste on the far side.
+      copyCurrentCapture()
+        .catch(() => undefined)
+        .then(() => {
+          toast(`Opening ${p.label}…`)
+          return chrome.runtime.sendMessage({ type: 'open-platform', platform: p.id })
+        })
+        .then(
+          (res: { ok: boolean; error?: string }) => {
+            if (!res?.ok) toast(res?.error ?? `Could not open ${p.label}`)
+          },
+          () => toast(`Could not open ${p.label}`),
+        )
     })
     strip.append(btn)
   }
