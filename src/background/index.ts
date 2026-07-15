@@ -1,6 +1,7 @@
 // Service worker: capture orchestration, commands, tab management.
 // MV3 workers sleep aggressively — keep all state in chrome.storage, never in memory.
 
+import { saveToHistory } from '../lib/history'
 import { CURRENT_CAPTURE_KEY, type CaptureRecord, type Msg, type SnipRect } from '../lib/messages'
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -35,12 +36,23 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
 
 async function captureAndShow(tabId: number, windowId: number, rect: SnipRect, dpr: number): Promise<void> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
-  const record = await cropToRecord(dataUrl, rect, dpr)
+  const { record, blob } = await cropToRecord(dataUrl, rect, dpr)
   await chrome.storage.session.set({ [CURRENT_CAPTURE_KEY]: record })
+  await saveToHistory({
+    id: record.id,
+    blob,
+    width: record.width,
+    height: record.height,
+    createdAt: record.createdAt,
+  })
   await chrome.sidePanel.open({ tabId })
 }
 
-async function cropToRecord(dataUrl: string, rect: SnipRect, dpr: number): Promise<CaptureRecord> {
+async function cropToRecord(
+  dataUrl: string,
+  rect: SnipRect,
+  dpr: number,
+): Promise<{ record: CaptureRecord; blob: Blob }> {
   const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob())
   const sx = Math.round(rect.x * dpr)
   const sy = Math.round(rect.y * dpr)
@@ -52,11 +64,14 @@ async function cropToRecord(dataUrl: string, rect: SnipRect, dpr: number): Promi
   ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh)
   const blob = await canvas.convertToBlob({ type: 'image/png' })
   return {
-    id: crypto.randomUUID(),
-    dataUrl: await blobToDataUrl(blob),
-    width: sw,
-    height: sh,
-    createdAt: Date.now(),
+    record: {
+      id: crypto.randomUUID(),
+      dataUrl: await blobToDataUrl(blob),
+      width: sw,
+      height: sh,
+      createdAt: Date.now(),
+    },
+    blob,
   }
 }
 
