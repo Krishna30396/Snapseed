@@ -8,6 +8,7 @@ import { listContacts } from '../lib/contacts'
 import {
   AUTO_SEND,
   CURRENT_CAPTURE_KEY,
+  RECENT_CACHE_KEY,
   type CaptureRecord,
   type ChatTarget,
   type DraftPlatform,
@@ -61,32 +62,43 @@ function loadContacts(
   platform: DraftPlatform,
   state: { selected: ChatTarget | null; all: ChatTarget[] },
 ): void {
-  // Saved contacts render immediately; recent chats from the app tab merge in
-  // when they arrive (the scrape can take a few seconds on a cold tab).
-  listContacts().then(
-    (saved) => {
-      state.all = dedupe(
-        saved.filter((c) => c.channel === platform).map((c) => ({ name: c.name, phone: c.phone })),
-      )
-      renderList(el, state.all, state)
-      if (!state.all.length) el.querySelector('.pk-list')?.replaceChildren(hint('Loading recent chats…'))
-    },
-    () => undefined,
-  )
+  // Three sources, fastest first: cached recent (instant) + saved contacts,
+  // then a fresh scrape from the app tab that merges in when it arrives.
+  Promise.all([cachedRecent(platform), listContacts()]).then(([cached, saved]) => {
+    const savedTargets = saved
+      .filter((c) => c.channel === platform)
+      .map((c) => ({ name: c.name, phone: c.phone }))
+    state.all = dedupe([...cached, ...savedTargets])
+    if (state.all.length) applyFilter(el, state)
+    else el.querySelector('.pk-list')?.replaceChildren(hint('Loading your recent chats…'))
+  })
   ;(chrome.runtime.sendMessage({ type: 'list-recent', platform }) as Promise<RecentResult>).then(
     (recent) => {
       if (recent.ok && recent.contacts.length) {
         state.all = dedupe([...recent.contacts, ...state.all])
         applyFilter(el, state)
+        setStatus(el, '')
       } else if (!state.all.length) {
         setStatus(el, recent.error ?? 'Open the app, then reopen this to see recent chats')
-        el.querySelector('.pk-list')?.replaceChildren(hint('No contacts yet — add saved contacts in the panel'))
+        el.querySelector('.pk-list')?.replaceChildren(
+          hint('No recent chats yet — is the app open and loaded? You can also search a name.'),
+        )
       }
     },
     () => {
       if (!state.all.length) setStatus(el, 'Could not read recent chats')
     },
   )
+}
+
+async function cachedRecent(platform: DraftPlatform): Promise<ChatTarget[]> {
+  try {
+    const found = await chrome.storage.session.get(RECENT_CACHE_KEY)
+    const cache = found[RECENT_CACHE_KEY] as Partial<Record<DraftPlatform, ChatTarget[]>> | undefined
+    return cache?.[platform] ?? []
+  } catch {
+    return []
+  }
 }
 
 function applyFilter(el: HTMLElement, state: { selected: ChatTarget | null; all: ChatTarget[] }): void {
@@ -132,9 +144,7 @@ function renderList(
     ...contacts.map((c) => {
       const row = document.createElement('button')
       row.className = 'pk-row'
-      row.innerHTML = `<span class="pk-avatar"></span><span class="pk-name"></span>`
-      row.querySelector('.pk-avatar')!.textContent = (c.name[0] ?? '?').toUpperCase()
-      row.querySelector('.pk-name')!.textContent = c.name
+      row.append(avatarEl(c), nameEl(c.name))
       if (state.selected?.name === c.name) row.classList.add('sel')
       row.addEventListener('click', () => {
         state.selected = c
@@ -185,6 +195,27 @@ function wireCaptionEnter(
       }
     })
   }
+}
+
+function avatarEl(c: ChatTarget): HTMLElement {
+  if (c.avatar) {
+    const img = document.createElement('img')
+    img.className = 'pk-avatar pk-avatar-img'
+    img.src = c.avatar
+    img.alt = ''
+    return img
+  }
+  const span = document.createElement('span')
+  span.className = 'pk-avatar'
+  span.textContent = (c.name.trim()[0] ?? '?').toUpperCase()
+  return span
+}
+
+function nameEl(name: string): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'pk-name'
+  span.textContent = name
+  return span
 }
 
 function hint(text: string): HTMLElement {

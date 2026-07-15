@@ -101,6 +101,7 @@ const CSS = `
   width: 28px; height: 28px; border-radius: 50%; flex: none;
   background: #FFB020; color: #1A1C22; font: 600 13px/28px system-ui, sans-serif; text-align: center;
 }
+.pk-avatar-img { object-fit: cover; background: #0e0f13; }
 .pk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-hint { margin: 6px 2px; font: 400 12px/1.4 system-ui, sans-serif; color: rgba(245,246,248,.6); }
 .pk-status { margin: 0; min-height: 15px; font: 500 12px/1.3 system-ui, sans-serif; color: #FFB020; }

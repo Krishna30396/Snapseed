@@ -6,6 +6,7 @@ import {
   AUTO_SEND,
   CURRENT_CAPTURE_KEY,
   PASTE_HINT_KEY,
+  RECENT_CACHE_KEY,
   RECORD_REQUEST_KEY,
   type CaptureRecord,
   type ChatTarget,
@@ -15,7 +16,7 @@ import {
   type SendResult,
   type SnipRect,
 } from '../lib/messages'
-import { refreshRemoteSelectors } from '../lib/selectors'
+import { getSelectors, refreshRemoteSelectors } from '../lib/selectors'
 
 refreshRemoteSelectors().catch(() => {
   // offline or remote config not published yet — bundled selectors apply
@@ -140,21 +141,95 @@ async function ensureAppTab(platform: DraftPlatform): Promise<chrome.tabs.Tab> {
   return chrome.tabs.create({ url: APP_URL[platform], active: false })
 }
 
-/** Ask the open app tab for its recent-chat list so the bar can show it. */
+/** Read the app tab's recent-chat list. Uses chrome.scripting.executeScript
+ *  rather than messaging a content script — content scripts are NOT injected
+ *  into tabs that were already open when the extension loaded, which is the
+ *  common case (the user opened WhatsApp before installing). executeScript runs
+ *  regardless, so recent chats load without the user refreshing the tab. */
 async function listRecent(platform: DraftPlatform): Promise<RecentResult> {
   const tab = await ensureAppTab(platform)
   if (tab.id === undefined) return { ok: false, contacts: [], error: 'Open the app first' }
+  const sel = (await getSelectors())[platform]
   const deadline = Date.now() + 6000
   for (;;) {
     try {
-      return (await chrome.tabs.sendMessage(tab.id, { type: 'scrape-recent' } satisfies Msg)) as RecentResult
-    } catch {
-      if (Date.now() > deadline) {
-        return { ok: false, contacts: [], error: 'Open the app tab, then reopen to load recent chats' }
+      const [res] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: scrapePage,
+        args: [sel['chatListRow'] ?? [], sel['chatRowName'] ?? [], sel['rowAvatar'] ?? []],
+      })
+      const contacts = (res?.result ?? []) as ChatTarget[]
+      if (contacts.length) {
+        await cacheRecent(platform, contacts)
+        return { ok: true, contacts }
       }
-      await new Promise((r) => setTimeout(r, 600))
+    } catch {
+      // tab still loading / not scriptable yet — retry until the deadline
     }
+    if (Date.now() > deadline) {
+      return { ok: false, contacts: [], error: 'Open the app tab and let it finish loading, then reopen' }
+    }
+    await new Promise((r) => setTimeout(r, 600))
   }
+}
+
+/** Runs INSIDE the app tab (serialized by executeScript — no outside refs).
+ *  Returns recent chats as {name, avatar?} using the passed selector lists. */
+function scrapePage(rowSel: string[], nameSel: string[], avatarSel: string[]): ChatTarget[] {
+  const queryAll = (cands: string[]): HTMLElement[] => {
+    for (const s of cands) {
+      try {
+        const f = document.querySelectorAll<HTMLElement>(s)
+        if (f.length) return Array.from(f)
+      } catch {
+        /* invalid selector on this DOM */
+      }
+    }
+    return []
+  }
+  const firstText = (row: HTMLElement, cands: string[]): string => {
+    for (const s of cands) {
+      const el = row.querySelector(s)
+      const t = (el?.getAttribute('title') ?? el?.textContent ?? '').trim()
+      if (t) return t
+    }
+    return ''
+  }
+  const avatarOf = (row: HTMLElement, cands: string[]): string | undefined => {
+    for (const s of cands) {
+      const img = row.querySelector<HTMLImageElement>(s)
+      if (!img || !img.complete || !img.naturalWidth) continue
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = 40
+        canvas.height = 40
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return undefined
+        ctx.drawImage(img, 0, 0, 40, 40)
+        return canvas.toDataURL('image/jpeg', 0.7)
+      } catch {
+        return undefined
+      }
+    }
+    return undefined
+  }
+  const out: ChatTarget[] = []
+  const seen = new Set<string>()
+  for (const row of queryAll(rowSel).slice(0, 30)) {
+    const name = firstText(row, nameSel)
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    out.push({ name, avatar: avatarOf(row, avatarSel) })
+    if (out.length >= 12) break
+  }
+  return out
+}
+
+async function cacheRecent(platform: DraftPlatform, contacts: ChatTarget[]): Promise<void> {
+  const found = await chrome.storage.session.get(RECENT_CACHE_KEY)
+  const cache = (found[RECENT_CACHE_KEY] as Partial<Record<DraftPlatform, ChatTarget[]>>) ?? {}
+  cache[platform] = contacts
+  await chrome.storage.session.set({ [RECENT_CACHE_KEY]: cache })
 }
 
 /** Open the chosen chat in the app tab, inject the capture + caption, and
@@ -172,6 +247,7 @@ async function sendToContact(
   if (tab.id === undefined) return { ok: false, error: 'Could not open the chat tab' }
   await chrome.tabs.update(tab.id, { active: true })
   if (tab.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true })
+  await ensureInjector(tab.id, platform)
 
   const inject: Msg = {
     type: 'open-inject',
@@ -181,6 +257,24 @@ async function sendToContact(
     autoSend: AUTO_SEND[platform],
   }
   return relayWhenReady(tab.id, inject)
+}
+
+/** Inject the platform's content script into a tab that was open before the
+ *  extension loaded (declared content scripts don't auto-inject into those).
+ *  The injector self-guards against double-registration, so this is safe to
+ *  call on an already-injected tab. */
+async function ensureInjector(tabId: number, platform: DraftPlatform): Promise<void> {
+  const host = platform === 'whatsapp' ? 'web.whatsapp.com' : 'web.telegram.org'
+  const entry = (chrome.runtime.getManifest().content_scripts ?? []).find((cs) =>
+    (cs.matches ?? []).some((m) => m.includes(host)),
+  )
+  const files = entry?.js
+  if (!files?.length) return
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files })
+  } catch (err) {
+    console.warn('[SnapSend] injector executeScript failed (may already be present)', err)
+  }
 }
 
 /** The injector script may not be alive yet on a cold tab — retry the message

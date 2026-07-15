@@ -1,21 +1,23 @@
 {
-  "version": 4,
+  "version": 5,
   "whatsapp": {
     "search": [
       "div[aria-label='Search input textbox'][contenteditable='true']",
       "div[contenteditable='true'][data-tab='3']",
-      "div[title='Search input textbox'][contenteditable='true']"
-    ],
-    "searchClear": [
-      "button[aria-label='Cancel search']",
-      "span[data-icon='x-alt']"
+      "#side div[contenteditable='true']"
     ],
     "chatListRow": [
+      "#pane-side div[role='listitem']",
       "div[aria-label='Chat list'] div[role='listitem']",
-      "#pane-side div[role='listitem']"
+      "#pane-side [role='row']"
     ],
     "chatRowName": [
-      "span[title]"
+      "span[title][dir='auto']",
+      "span[title]",
+      "span[dir='auto']"
+    ],
+    "rowAvatar": [
+      "img[src]"
     ],
     "composer": [
       "footer div[contenteditable='true'][data-tab]",
@@ -35,24 +37,39 @@
     "sendButton": [
       "div[aria-label='Send'][role='button']",
       "span[data-icon='send']",
-      "span[data-icon='send-light']"
+      "span[data-icon='send-light']",
+      "button[aria-label='Send']"
     ]
   },
   "telegram": {
     "search": [
       "input#telegram-search-input",
+      "#telegram-search-input",
       ".chatlist-container input.form-control",
-      ".input-search input"
+      "input.form-control[placeholder='Search']",
+      "input[type='search']"
     ],
     "chatListRow": [
-      "#chatlist .chatlist-chat",
+      ".chatlist .chatlist-chat",
       "ul.chatlist a.chatlist-chat",
-      ".chatlist .ListItem-button"
+      ".chat-list .ListItem",
+      "#LeftColumn .chat-list .ListItem-button",
+      ".ChatList .ListItem"
     ],
     "chatRowName": [
       ".user-title .peer-title",
       ".dialog-title .peer-title",
-      ".info .title"
+      ".peer-title",
+      ".info .title",
+      ".title .fullName",
+      "h3"
+    ],
+    "rowAvatar": [
+      ".avatar-photo",
+      ".Avatar img",
+      "img.avatar-media",
+      ".avatar img",
+      "img"
     ],
     "composer": [
       ".input-message-input[contenteditable='true']",
@@ -73,7 +90,8 @@
       ".popup-send-photo .btn-primary",
       "button.send",
       ".Composer button.send",
-      ".btn-send"
+      ".btn-send",
+      "button.btn-primary.btn-color-primary"
     ]
   }
 }

@@ -13,11 +13,17 @@ export type PlatformId = 'whatsapp' | 'telegram' | 'gmail' | 'slack'
 export type DraftPlatform = 'whatsapp' | 'telegram'
 
 /** A chat the user can send to: a saved contact (phone) or a recent chat
- *  scraped from the open app tab (name only, opened via in-app search). */
+ *  scraped from the open app tab (name + avatar, opened via in-app search). */
 export interface ChatTarget {
   name: string
   phone?: string
+  /** data: URL of the contact's profile picture, when we could read it */
+  avatar?: string
 }
+
+/** Cache of the last scraped recent chats per platform, so reopening the
+ *  picker is instant while a fresh scrape runs in the background. */
+export const RECENT_CACHE_KEY = 'ss.recent'
 
 export type Msg =
   | { type: 'snip-start' }
