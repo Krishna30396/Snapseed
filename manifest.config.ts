@@ -13,6 +13,9 @@ export default defineManifest({
     'sidePanel',
     'clipboardWrite',
   ],
+  // captureVisibleTab explicitly requires '<all_urls>' (granular http/https
+  // patterns are rejected by its permission check) — see PERMISSIONS.md.
+  host_permissions: ['<all_urls>'],
   action: {
     default_title: 'SnapSend',
   },

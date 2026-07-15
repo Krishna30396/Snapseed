@@ -1,4 +1,5 @@
 import { type BarState, getBarState, setBarState } from '../lib/storage'
+import { startSnip } from './snip-overlay'
 
 const HOST_ID = 'snapsend-bar-host'
 
@@ -115,11 +116,7 @@ function wireHide(el: HTMLElement, wrap: HTMLElement, host: string, state: BarSt
 }
 
 function wireSnip(wrap: HTMLElement): void {
-  wrap.querySelector('.snip')?.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'snip-start' }).catch(() => {
-      // task 1.3 wires the overlay; nothing to recover yet
-    })
-  })
+  wrap.querySelector('.snip')?.addEventListener('click', () => startSnip())
 }
 
 function wireDrag(wrap: HTMLElement, host: string, state: BarState): void {
