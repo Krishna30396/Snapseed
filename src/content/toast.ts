@@ -2,7 +2,7 @@
 
 const TOAST_ID = 'snapsend-toast-host'
 
-export function toast(message: string): void {
+export function toast(message: string, durationMs = 3200): void {
   document.getElementById(TOAST_ID)?.remove()
   const el = document.createElement('div')
   el.id = TOAST_ID
@@ -25,6 +25,6 @@ export function toast(message: string): void {
   if (box) box.textContent = message
   document.documentElement.append(el)
   requestAnimationFrame(() => box?.classList.add('in'))
-  setTimeout(() => box?.classList.remove('in'), 3200)
-  setTimeout(() => el.remove(), 3600)
+  setTimeout(() => box?.classList.remove('in'), durationMs)
+  setTimeout(() => el.remove(), durationMs + 400)
 }

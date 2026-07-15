@@ -193,13 +193,11 @@ function wireDrag(wrap: HTMLElement, host: string, state: BarState): void {
   let start: { px: number; py: number; x: number; y: number } | null = null
   let dragged = false
 
-  pill.addEventListener('pointerdown', (ev) => {
-    const r = wrap.getBoundingClientRect()
-    start = { px: ev.clientX, py: ev.clientY, x: r.left, y: r.top }
-    dragged = false
-    pill.setPointerCapture(ev.pointerId)
-  })
-  pill.addEventListener('pointermove', (ev) => {
+  // Window-level move/up tracking: pointer capture on the pill would retarget
+  // the release and swallow every button's click, and pill-level listeners
+  // lose the pointer the moment it leaves the pill. This keeps clicks intact
+  // AND follows the drag anywhere on the page.
+  const onMove = (ev: PointerEvent) => {
     if (!start) return
     const dx = ev.clientX - start.px
     const dy = ev.clientY - start.py
@@ -207,8 +205,10 @@ function wireDrag(wrap: HTMLElement, host: string, state: BarState): void {
     dragged = true
     wrap.classList.add('placed')
     moveTo(wrap, start.x + dx, start.y + dy)
-  })
-  pill.addEventListener('pointerup', () => {
+  }
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove, true)
+    window.removeEventListener('pointerup', onUp, true)
     if (!start) return
     start = null
     if (!dragged) return
@@ -216,6 +216,13 @@ function wireDrag(wrap: HTMLElement, host: string, state: BarState): void {
     state.x = r.left
     state.y = r.top
     persist(host, state)
+  }
+  pill.addEventListener('pointerdown', (ev) => {
+    const r = wrap.getBoundingClientRect()
+    start = { px: ev.clientX, py: ev.clientY, x: r.left, y: r.top }
+    dragged = false
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('pointerup', onUp, true)
   })
   // A drag must not fire the button underneath the release point.
   pill.addEventListener(

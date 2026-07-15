@@ -17,8 +17,10 @@ function checkPasteHint(): void {
       const hint = found[PASTE_HINT_KEY] as { platform: PlatformId; ts: number } | undefined
       if (!hint || Date.now() - hint.ts > 60000) return
       if (!location.host.endsWith(PLATFORM_HOSTS[hint.platform])) return
-      toast(HINT_TEXT)
-      chrome.storage.session.remove(PASTE_HINT_KEY).catch(() => undefined)
+      // The flag is NOT removed here — platform apps redirect through
+      // short-lived documents (Telegram / -> /a/) that would consume it before
+      // the real page loads. It just expires via its 60s TTL.
+      toast(HINT_TEXT, 7000)
     },
     () => undefined,
   )
@@ -31,9 +33,6 @@ if (!BLOCKED_HOSTS.includes(location.host)) {
   checkPasteHint()
   chrome.runtime.onMessage.addListener((msg: Msg) => {
     if (msg.type === 'snip-start') startSnip()
-    if (msg.type === 'paste-hint') {
-      toast(HINT_TEXT)
-      chrome.storage.session.remove(PASTE_HINT_KEY).catch(() => undefined)
-    }
+    if (msg.type === 'paste-hint') toast(HINT_TEXT, 7000)
   })
 }
