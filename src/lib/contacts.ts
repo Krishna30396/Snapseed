@@ -1,6 +1,11 @@
 // Contact store — chrome.storage.local ONLY. Contacts never leave the device.
 
-export type Channel = 'whatsapp'
+export type Channel = 'whatsapp' | 'telegram'
+
+export const CHANNEL_LABEL: Record<Channel, string> = {
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+}
 
 export interface Contact {
   id: string

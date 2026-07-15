@@ -44,14 +44,14 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
     )
     return true // async sendResponse
   }
-  if (msg.type === 'send-whatsapp') {
-    sendToWhatsApp(msg.phone, msg.caption).then(
+  if (msg.type === 'send-draft') {
+    sendDraft(msg.channel, msg.phone, msg.caption).then(
       (result) => sendResponse(result),
       (err: unknown) => {
-        console.error('[SnapSend] WhatsApp send failed', err)
+        console.error(`[SnapSend] ${msg.channel} send failed`, err)
         sendResponse({
           ok: false,
-          error: 'Could not reach WhatsApp Web — image copied, press Ctrl+V in the chat',
+          error: 'Could not reach the chat — image copied, press Ctrl+V there',
         } satisfies SendResult)
       },
     )
@@ -60,20 +60,37 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
   return
 })
 
-async function sendToWhatsApp(phone: string, caption: string): Promise<SendResult> {
+const CHANNELS = {
+  whatsapp: {
+    chatUrl: (phone: string) => `https://web.whatsapp.com/send?phone=${phone}`,
+    tabPattern: '*://web.whatsapp.com/*',
+  },
+  telegram: {
+    chatUrl: (phone: string) =>
+      `https://web.telegram.org/k/#?tgaddr=${encodeURIComponent(`tg://resolve?phone=${phone}`)}`,
+    tabPattern: '*://web.telegram.org/*',
+  },
+} as const
+
+async function sendDraft(
+  channel: keyof typeof CHANNELS,
+  phone: string,
+  caption: string,
+): Promise<SendResult> {
   const found = await chrome.storage.session.get(CURRENT_CAPTURE_KEY)
   const record = found[CURRENT_CAPTURE_KEY] as CaptureRecord | undefined
   if (!record) return { ok: false, error: 'No capture to send — snip something first' }
 
-  const url = `https://web.whatsapp.com/send?phone=${phone}`
-  const existing = (await chrome.tabs.query({ url: '*://web.whatsapp.com/*' }))[0]
+  const site = CHANNELS[channel]
+  const url = site.chatUrl(phone)
+  const existing = (await chrome.tabs.query({ url: site.tabPattern }))[0]
   const tab = existing?.id !== undefined
     ? await chrome.tabs.update(existing.id, { url, active: true })
     : await chrome.tabs.create({ url })
-  if (tab?.id === undefined) return { ok: false, error: 'Could not open WhatsApp Web' }
+  if (tab?.id === undefined) return { ok: false, error: 'Could not open the chat tab' }
   await chrome.windows.update(tab.windowId, { focused: true })
 
-  const inject: Msg = { type: 'wa-inject', dataUrl: record.dataUrl, caption }
+  const inject: Msg = { type: 'inject', dataUrl: record.dataUrl, caption }
   return relayWhenReady(tab.id, inject)
 }
 
@@ -87,7 +104,7 @@ async function relayWhenReady(tabId: number, msg: Msg): Promise<SendResult> {
       return (await chrome.tabs.sendMessage(tabId, msg)) as SendResult
     } catch {
       if (Date.now() > deadline) {
-        return { ok: false, error: 'WhatsApp Web did not load — image copied, press Ctrl+V' }
+        return { ok: false, error: 'The chat did not load — image copied, press Ctrl+V there' }
       }
       await new Promise((r) => setTimeout(r, 1000))
     }

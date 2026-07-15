@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "whatsapp": {
     "composer": [
       "footer div[contenteditable='true'][data-tab]",
@@ -17,5 +17,21 @@
       "div[aria-label='Send']"
     ]
   },
-  "telegram": {}
+  "telegram": {
+    "composer": [
+      ".input-message-input[contenteditable='true']",
+      "div[contenteditable='true'].input-message-input",
+      ".composer_rich_textarea[contenteditable='true']"
+    ],
+    "captionInput": [
+      ".popup.active .input-message-input[contenteditable='true']",
+      ".popup-send-photo .input-message-input",
+      ".popup .input-field-input[contenteditable='true']"
+    ],
+    "mediaPreview": [
+      ".popup-send-photo",
+      ".popup.popup-new-media",
+      ".popup .btn-primary"
+    ]
+  }
 }

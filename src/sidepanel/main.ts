@@ -73,15 +73,15 @@ function sendDraft(target: PickedTarget): void {
       }),
     )
     .then(() => {
-      setStatus(`Opening WhatsApp draft for ${target.name}…`)
-      const msg: Msg = { type: 'send-whatsapp', phone: target.phone, caption }
+      setStatus(`Opening draft for ${target.name}…`)
+      const msg: Msg = { type: 'send-draft', channel: target.channel, phone: target.phone, caption }
       return chrome.runtime.sendMessage(msg) as Promise<SendResult>
     })
     .then(
       (res) => {
-        setStatus(res.ok ? 'Draft ready — press Send in WhatsApp' : (res.error ?? 'Failed'))
+        setStatus(res.ok ? 'Draft ready — press Send in the chat' : (res.error ?? 'Failed'))
       },
-      () => setStatus('Could not reach WhatsApp — image copied, press Ctrl+V there'),
+      () => setStatus('Could not reach the chat — image copied, press Ctrl+V there'),
     )
 }
 

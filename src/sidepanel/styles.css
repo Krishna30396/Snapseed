@@ -309,6 +309,21 @@ h1 {
   align-items: flex-start;
 }
 
+.channel-select {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  padding: 8px;
+  font: 400 12px/1 system-ui, sans-serif;
+  background: none;
+  color: inherit;
+}
+
+.add-form .channel-select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
 .quick .quick-phone {
   flex: 1;
   margin-bottom: 0;

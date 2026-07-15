@@ -7,11 +7,13 @@ export interface SnipRect {
   h: number
 }
 
+export type DraftChannel = 'whatsapp' | 'telegram'
+
 export type Msg =
   | { type: 'snip-start' }
   | { type: 'snip-capture'; rect: SnipRect; dpr: number }
-  | { type: 'send-whatsapp'; phone: string; caption: string }
-  | { type: 'wa-inject'; dataUrl: string; caption: string }
+  | { type: 'send-draft'; channel: DraftChannel; phone: string; caption: string }
+  | { type: 'inject'; dataUrl: string; caption: string }
 
 export interface SendResult {
   ok: boolean
