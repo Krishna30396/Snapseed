@@ -10,6 +10,14 @@ export interface SnipRect {
 export type Msg =
   | { type: 'snip-start' }
   | { type: 'snip-capture'; rect: SnipRect; dpr: number }
+  | { type: 'send-whatsapp'; phone: string; caption: string }
+  | { type: 'wa-inject'; dataUrl: string; caption: string }
+
+export interface SendResult {
+  ok: boolean
+  /** user-facing failure text; the image is already on the clipboard */
+  error?: string
+}
 
 export interface CaptureRecord {
   id: string

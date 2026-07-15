@@ -3,7 +3,8 @@
 
 import { createAnnotator, type Annotator, type Tool } from '../lib/annotate'
 import { getHistory, type HistoryEntry } from '../lib/history'
-import { CURRENT_CAPTURE_KEY, type CaptureRecord } from '../lib/messages'
+import { CURRENT_CAPTURE_KEY, type CaptureRecord, type Msg, type SendResult } from '../lib/messages'
+import { mountContactsUI, type PickedTarget } from './contacts-ui'
 
 const app = document.getElementById('app')
 let annotator: Annotator | null = null
@@ -35,6 +36,7 @@ function render(record: CaptureRecord | undefined): void {
       <button class="copy-cap">Copy with caption</button>
     </div>
     <p class="status" role="status"></p>
+    <div class="contacts"></div>
     <div class="history"></div>`
   const img = new Image()
   img.onload = () => mountEditor(img)
@@ -53,6 +55,47 @@ function mountEditor(img: HTMLImageElement): void {
   wireCopy()
   annotator.onChange = () => scheduleCopy()
   scheduleCopy() // fresh snip: image should already be on the clipboard
+  const contacts = app?.querySelector<HTMLElement>('.contacts')
+  if (contacts) mountContactsUI(contacts, sendDraft)
+}
+
+/** HARD RULE ORDER: the image goes on the clipboard FIRST; only then do we
+ *  attempt WhatsApp injection. Whatever fails after this point, the user can
+ *  always paste. */
+function sendDraft(target: PickedTarget): void {
+  const caption = app?.querySelector<HTMLTextAreaElement>('.caption')?.value.trim() ?? ''
+  setStatus('Copying image…')
+  syncAnnotatedToSession()
+    .then(() =>
+      copyImage().catch(() => {
+        // clipboard write needs panel focus; the auto-copy after the last
+        // annotation usually already succeeded, so keep going
+      }),
+    )
+    .then(() => {
+      setStatus(`Opening WhatsApp draft for ${target.name}…`)
+      const msg: Msg = { type: 'send-whatsapp', phone: target.phone, caption }
+      return chrome.runtime.sendMessage(msg) as Promise<SendResult>
+    })
+    .then(
+      (res) => {
+        setStatus(res.ok ? 'Draft ready — press Send in WhatsApp' : (res.error ?? 'Failed'))
+      },
+      () => setStatus('Could not reach WhatsApp — image copied, press Ctrl+V there'),
+    )
+}
+
+/** Keep the session record in step with the annotated canvas so the injector
+ *  sends what the user sees. */
+async function syncAnnotatedToSession(): Promise<void> {
+  const canvas = annotator?.canvas
+  if (!canvas) return
+  const found = await chrome.storage.session.get(CURRENT_CAPTURE_KEY)
+  const record = found[CURRENT_CAPTURE_KEY] as CaptureRecord | undefined
+  if (!record) return
+  await chrome.storage.session.set({
+    [CURRENT_CAPTURE_KEY]: { ...record, dataUrl: canvas.toDataURL('image/png') },
+  })
 }
 
 function buildToolbar(tools: HTMLElement): void {

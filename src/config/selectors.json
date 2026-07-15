@@ -1,5 +1,21 @@
 {
-  "version": 1,
-  "whatsapp": {},
+  "version": 2,
+  "whatsapp": {
+    "composer": [
+      "footer div[contenteditable='true'][data-tab]",
+      "div[contenteditable='true'][data-tab='10']",
+      "footer [role='textbox'][contenteditable='true']"
+    ],
+    "captionInput": [
+      "div[aria-label='Add a caption'][contenteditable='true']",
+      "div[contenteditable='true'][aria-placeholder='Add a caption']",
+      "div.copyable-area div[contenteditable='true'][data-tab][role='textbox']"
+    ],
+    "mediaPreview": [
+      "div[data-animate-media-preview]",
+      "span[data-icon='send']",
+      "div[aria-label='Send']"
+    ]
+  },
   "telegram": {}
 }

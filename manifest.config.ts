@@ -36,6 +36,11 @@ export default defineManifest({
       js: ['src/content/index.ts'],
       run_at: 'document_idle',
     },
+    {
+      matches: ['*://web.whatsapp.com/*'],
+      js: ['src/content/injectors/whatsapp.ts'],
+      run_at: 'document_idle',
+    },
   ],
   commands: {
     'snip-region': {

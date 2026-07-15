@@ -2,7 +2,18 @@
 // MV3 workers sleep aggressively — keep all state in chrome.storage, never in memory.
 
 import { saveToHistory } from '../lib/history'
-import { CURRENT_CAPTURE_KEY, type CaptureRecord, type Msg, type SnipRect } from '../lib/messages'
+import {
+  CURRENT_CAPTURE_KEY,
+  type CaptureRecord,
+  type Msg,
+  type SendResult,
+  type SnipRect,
+} from '../lib/messages'
+import { refreshRemoteSelectors } from '../lib/selectors'
+
+refreshRemoteSelectors().catch(() => {
+  // offline or remote config not published yet — bundled selectors apply
+})
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel
@@ -21,18 +32,67 @@ chrome.commands.onCommand.addListener((command, tab) => {
 })
 
 chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
-  if (msg.type !== 'snip-capture') return
-  const tab = sender.tab
-  if (tab?.id === undefined || tab.windowId === undefined) return
-  captureAndShow(tab.id, tab.windowId, msg.rect, msg.dpr).then(
-    () => sendResponse({ ok: true }),
-    (err: unknown) => {
-      console.error('[SnapSend] capture failed', err)
-      sendResponse({ ok: false, error: 'Capture failed — try again' })
-    },
-  )
-  return true // async sendResponse
+  if (msg.type === 'snip-capture') {
+    const tab = sender.tab
+    if (tab?.id === undefined || tab.windowId === undefined) return
+    captureAndShow(tab.id, tab.windowId, msg.rect, msg.dpr).then(
+      () => sendResponse({ ok: true }),
+      (err: unknown) => {
+        console.error('[SnapSend] capture failed', err)
+        sendResponse({ ok: false, error: 'Capture failed — try again' })
+      },
+    )
+    return true // async sendResponse
+  }
+  if (msg.type === 'send-whatsapp') {
+    sendToWhatsApp(msg.phone, msg.caption).then(
+      (result) => sendResponse(result),
+      (err: unknown) => {
+        console.error('[SnapSend] WhatsApp send failed', err)
+        sendResponse({
+          ok: false,
+          error: 'Could not reach WhatsApp Web — image copied, press Ctrl+V in the chat',
+        } satisfies SendResult)
+      },
+    )
+    return true
+  }
+  return
 })
+
+async function sendToWhatsApp(phone: string, caption: string): Promise<SendResult> {
+  const found = await chrome.storage.session.get(CURRENT_CAPTURE_KEY)
+  const record = found[CURRENT_CAPTURE_KEY] as CaptureRecord | undefined
+  if (!record) return { ok: false, error: 'No capture to send — snip something first' }
+
+  const url = `https://web.whatsapp.com/send?phone=${phone}`
+  const existing = (await chrome.tabs.query({ url: '*://web.whatsapp.com/*' }))[0]
+  const tab = existing?.id !== undefined
+    ? await chrome.tabs.update(existing.id, { url, active: true })
+    : await chrome.tabs.create({ url })
+  if (tab?.id === undefined) return { ok: false, error: 'Could not open WhatsApp Web' }
+  await chrome.windows.update(tab.windowId, { focused: true })
+
+  const inject: Msg = { type: 'wa-inject', dataUrl: record.dataUrl, caption }
+  return relayWhenReady(tab.id, inject)
+}
+
+/** The injector script may not be alive yet on a cold tab — retry the message
+ *  until it answers or the budget runs out. The injector itself then polls the
+ *  composer, so total cold-start budget ≈ 30s message + 20s composer. */
+async function relayWhenReady(tabId: number, msg: Msg): Promise<SendResult> {
+  const deadline = Date.now() + 30000
+  for (;;) {
+    try {
+      return (await chrome.tabs.sendMessage(tabId, msg)) as SendResult
+    } catch {
+      if (Date.now() > deadline) {
+        return { ok: false, error: 'WhatsApp Web did not load — image copied, press Ctrl+V' }
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+}
 
 async function captureAndShow(tabId: number, windowId: number, rect: SnipRect, dpr: number): Promise<void> {
   const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })

@@ -166,6 +166,187 @@ h1 {
   display: block;
 }
 
+.contacts {
+  margin-top: 16px;
+}
+
+.contacts .hint {
+  margin: 0 0 6px;
+}
+
+.favs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.fav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: 400 11px/1 system-ui, sans-serif;
+  width: 56px;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ink);
+  font: 600 15px/1 system-ui, sans-serif;
+  flex: none;
+}
+
+.avatar.big {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+
+.fav-name {
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search,
+.quick-phone,
+.add-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  padding: 8px;
+  font: 400 13px/1 system-ui, sans-serif;
+  background: none;
+  color: inherit;
+  margin-bottom: 8px;
+}
+
+.search:focus,
+.quick-phone:focus,
+.add-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.contact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.contact .main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.contact .main:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.contact .who {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact .name {
+  font: 500 13px/1.2 system-ui, sans-serif;
+}
+
+.contact .phone {
+  margin: 0;
+  font-size: 11px;
+}
+
+.badge {
+  font: 500 10px/1 system-ui, sans-serif;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 999px;
+  padding: 3px 8px;
+  opacity: 0.8;
+}
+
+.pin {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.row-actions {
+  margin: 4px 0 8px;
+}
+
+.quick {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.quick .quick-phone {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet .card {
+  background: canvas;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet .sending {
+  margin: 0;
+  font-size: 14px;
+}
+
+.sheet .actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status {
     transition: none;
