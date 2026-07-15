@@ -1,6 +1,14 @@
+import { CURRENT_CAPTURE_KEY, type PlatformId } from '../lib/messages'
 import { type BarState, getBarState, setBarState } from '../lib/storage'
 import { startSnip } from './snip-overlay'
 import { toast } from './toast'
+
+const PLATFORMS: { id: PlatformId; label: string; short: string; color: string }[] = [
+  { id: 'whatsapp', label: 'WhatsApp', short: 'W', color: '#25D366' },
+  { id: 'telegram', label: 'Telegram', short: 'T', color: '#2AABEE' },
+  { id: 'gmail', label: 'Gmail', short: 'G', color: '#EA4335' },
+  { id: 'slack', label: 'Slack', short: 'S', color: '#611F69' },
+]
 
 const HOST_ID = 'snapsend-bar-host'
 
@@ -42,9 +50,21 @@ const CSS = `
   cursor: pointer; font-size: 12px; padding: 8px 10px; border-radius: 999px;
 }
 .hide:hover { color: #F5F6F8; background: rgba(255,255,255,.10); }
-.collapsed .btn, .collapsed .hide { display: none; }
+.send-strip {
+  display: flex; align-items: center; gap: 4px;
+}
+.send-strip[hidden] { display: none; }
+.sep { width: 1px; height: 18px; background: rgba(255,255,255,.18); margin: 0 2px; }
+.plat {
+  width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer;
+  color: #fff; font: 700 12px/1 system-ui, sans-serif; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: transform .15s ease-out;
+}
+.plat:hover { transform: scale(1.12); }
+.collapsed .btn, .collapsed .hide, .collapsed .send-strip { display: none; }
 .collapsed .pill { padding: 4px; }
-@media (prefers-reduced-motion: reduce) { .pill, .lens { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .pill, .lens, .plat { transition: none; } }
 `
 
 const HTML = `
@@ -53,6 +73,7 @@ const HTML = `
     <button class="lens" title="Collapse SnapSend"></button>
     <button class="btn snip" title="Snip a region (Alt+Shift+S)">Snip</button>
     <button class="btn record" title="Record your screen (up to 3 min)">Record</button>
+    <span class="send-strip" hidden><span class="sep"></span></span>
     <button class="hide" title="Hide SnapSend on this site">&#10005;</button>
   </div>
 </div>`
@@ -74,7 +95,44 @@ export async function mountFloatingBar(): Promise<void> {
   wireLens(wrap, host, state)
   wireHide(el, wrap, host, state)
   wireSnip(wrap)
+  wireSendStrip(wrap)
   wireDrag(wrap, host, state)
+}
+
+/** Platform icons appear on the bar as soon as a capture exists — click one
+ *  and SnapSend takes you there with the image ready to paste/draft. */
+function wireSendStrip(wrap: HTMLElement): void {
+  const strip = wrap.querySelector<HTMLElement>('.send-strip')
+  if (!strip) return
+  for (const p of PLATFORMS) {
+    const btn = document.createElement('button')
+    btn.className = 'plat'
+    btn.style.background = p.color
+    btn.textContent = p.short
+    btn.title = `Send via ${p.label}`
+    btn.addEventListener('click', () => {
+      toast(`Opening ${p.label}…`)
+      chrome.runtime.sendMessage({ type: 'open-platform', platform: p.id }).then(
+        (res: { ok: boolean; error?: string }) => {
+          if (!res?.ok) toast(res?.error ?? `Could not open ${p.label}`)
+        },
+        () => toast(`Could not open ${p.label}`),
+      )
+    })
+    strip.append(btn)
+  }
+  const sync = () => {
+    chrome.storage.session.get(CURRENT_CAPTURE_KEY).then(
+      (found) => {
+        strip.hidden = !found[CURRENT_CAPTURE_KEY]
+      },
+      () => undefined,
+    )
+  }
+  sync()
+  chrome.storage.session.onChanged.addListener((changes) => {
+    if (CURRENT_CAPTURE_KEY in changes) sync()
+  })
 }
 
 function applyState(wrap: HTMLElement, state: BarState): void {
@@ -119,6 +177,7 @@ function wireHide(el: HTMLElement, wrap: HTMLElement, host: string, state: BarSt
 function wireSnip(wrap: HTMLElement): void {
   wrap.querySelector('.snip')?.addEventListener('click', () => startSnip())
   wrap.querySelector('.record')?.addEventListener('click', () => {
+    toast('Opening the recorder…')
     chrome.runtime.sendMessage({ type: 'record-start' }).then(
       (res: { ok: boolean; error?: string }) => {
         if (!res?.ok) toast(res?.error ?? 'Could not open the panel — click the SnapSend icon')

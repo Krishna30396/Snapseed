@@ -4,6 +4,7 @@
 import { saveToHistory } from '../lib/history'
 import {
   CURRENT_CAPTURE_KEY,
+  PASTE_HINT_KEY,
   RECORD_REQUEST_KEY,
   type CaptureRecord,
   type Msg,
@@ -23,6 +24,29 @@ chrome.runtime.onInstalled.addListener(() => {
       console.error('[SnapSend] sidePanel behavior setup failed', err)
     })
 })
+
+// Let the floating bar (content script) see the current capture so it can show
+// the send strip. Session storage holds only this device-local capture state.
+chrome.storage.session
+  .setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
+  .catch((err: unknown) => {
+    console.error('[SnapSend] session access level failed', err)
+  })
+
+/** Open the side panel; if the browser refuses (gesture rules differ across
+ *  browsers), fall back to a popup window so the user always SEES a response. */
+async function openPanel(tabId: number): Promise<void> {
+  try {
+    await chrome.sidePanel.open({ tabId })
+  } catch {
+    await chrome.windows.create({
+      url: chrome.runtime.getURL('src/sidepanel/index.html'),
+      type: 'popup',
+      width: 420,
+      height: 640,
+    })
+  }
+}
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== 'snip-region' || tab?.id === undefined) return
@@ -50,12 +74,22 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
     if (tabId === undefined) return
     Promise.all([
       chrome.storage.session.set({ [RECORD_REQUEST_KEY]: Date.now() }),
-      chrome.sidePanel.open({ tabId }),
+      openPanel(tabId),
     ]).then(
       () => sendResponse({ ok: true }),
       (err: unknown) => {
         console.error('[SnapSend] record-start failed', err)
         sendResponse({ ok: false, error: 'Could not open the panel — click the SnapSend icon' })
+      },
+    )
+    return true
+  }
+  if (msg.type === 'open-platform') {
+    openPlatform(msg.platform).then(
+      (result) => sendResponse(result),
+      (err: unknown) => {
+        console.error('[SnapSend] open-platform failed', err)
+        sendResponse({ ok: false, error: 'Could not open the app tab' } satisfies SendResult)
       },
     )
     return true
@@ -138,7 +172,38 @@ async function captureAndShow(tabId: number, windowId: number, rect: SnipRect, d
     height: record.height,
     createdAt: record.createdAt,
   })
-  await chrome.sidePanel.open({ tabId })
+  // A failed panel open must not fail the capture — the bar's send strip and
+  // the clipboard copy already give the user a working result.
+  await openPanel(tabId).catch((err: unknown) => {
+    console.warn('[SnapSend] panel did not open after snip', err)
+  })
+}
+
+const PLATFORM_TABS: Record<
+  'whatsapp' | 'telegram' | 'gmail' | 'slack',
+  { url: string; pattern: string }
+> = {
+  whatsapp: { url: 'https://web.whatsapp.com/', pattern: '*://web.whatsapp.com/*' },
+  telegram: { url: 'https://web.telegram.org/', pattern: '*://web.telegram.org/*' },
+  gmail: { url: 'https://mail.google.com/mail/?view=cm&fs=1', pattern: '*://mail.google.com/*' },
+  slack: { url: 'https://app.slack.com/client', pattern: '*://app.slack.com/*' },
+}
+
+/** Bar send strip: jump to the platform (reuse its tab if one is open) and
+ *  show the paste hint there. The image is already on the clipboard. */
+async function openPlatform(platform: keyof typeof PLATFORM_TABS): Promise<SendResult> {
+  const site = PLATFORM_TABS[platform]
+  // redirect-proof hint: every fresh page-load on the platform checks this flag
+  await chrome.storage.session.set({ [PASTE_HINT_KEY]: { platform, ts: Date.now() } })
+  const existing = (await chrome.tabs.query({ url: site.pattern }))[0]
+  const tab = existing?.id !== undefined
+    ? await chrome.tabs.update(existing.id, { active: true })
+    : await chrome.tabs.create({ url: site.url })
+  if (tab?.id === undefined) return { ok: false, error: 'Could not open the app tab' }
+  await chrome.windows.update(tab.windowId, { focused: true })
+  const hint: Msg = { type: 'paste-hint' }
+  relayWhenReady(tab.id, hint).catch(() => undefined)
+  return { ok: true }
 }
 
 async function cropToRecord(

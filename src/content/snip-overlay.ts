@@ -1,4 +1,5 @@
 import type { Msg, SnipRect } from '../lib/messages'
+import { copyCurrentCapture } from './clipboard'
 import { toast } from './toast'
 
 const OVERLAY_ID = 'snapsend-snip-host'
@@ -93,7 +94,14 @@ function requestCapture(rect: SnipRect): void {
       const msg: Msg = { type: 'snip-capture', rect, dpr: window.devicePixelRatio }
       chrome.runtime.sendMessage(msg).then(
         (res: { ok: boolean; error?: string }) => {
-          if (!res?.ok) toast(res?.error ?? 'Capture failed — try again')
+          if (!res?.ok) {
+            toast(res?.error ?? 'Capture failed — try again')
+            return
+          }
+          copyCurrentCapture().then(
+            () => toast('Captured ✓ copied — paste anywhere, or pick an app on the bar'),
+            () => toast('Captured ✓ — pick an app on the bar to send it'),
+          )
         },
         () => toast('Capture failed — try again'),
       )

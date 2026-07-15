@@ -8,6 +8,7 @@ export interface SnipRect {
 }
 
 export type DraftChannel = 'whatsapp' | 'telegram'
+export type PlatformId = 'whatsapp' | 'telegram' | 'gmail' | 'slack'
 
 export type Msg =
   | { type: 'snip-start' }
@@ -15,6 +16,8 @@ export type Msg =
   | { type: 'record-start' }
   | { type: 'send-draft'; channel: DraftChannel; phone: string; caption: string }
   | { type: 'inject'; dataUrl: string; caption: string }
+  | { type: 'open-platform'; platform: PlatformId }
+  | { type: 'paste-hint' }
 
 export interface SendResult {
   ok: boolean
@@ -32,3 +35,13 @@ export interface CaptureRecord {
 
 export const CURRENT_CAPTURE_KEY = 'ss.current'
 export const RECORD_REQUEST_KEY = 'ss.recordRequest'
+/** {platform, ts} — set when the user jumps to a platform from the bar; any
+ *  fresh page-load on that platform shows the paste hint (redirect-proof). */
+export const PASTE_HINT_KEY = 'ss.pasteHint'
+
+export const PLATFORM_HOSTS: Record<PlatformId, string> = {
+  whatsapp: 'web.whatsapp.com',
+  telegram: 'web.telegram.org',
+  gmail: 'mail.google.com',
+  slack: 'app.slack.com',
+}
