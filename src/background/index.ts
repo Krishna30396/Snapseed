@@ -4,6 +4,7 @@
 import { saveToHistory } from '../lib/history'
 import {
   CURRENT_CAPTURE_KEY,
+  RECORD_REQUEST_KEY,
   type CaptureRecord,
   type Msg,
   type SendResult,
@@ -43,6 +44,21 @@ chrome.runtime.onMessage.addListener((msg: Msg, sender, sendResponse) => {
       },
     )
     return true // async sendResponse
+  }
+  if (msg.type === 'record-start') {
+    const tabId = sender.tab?.id
+    if (tabId === undefined) return
+    Promise.all([
+      chrome.storage.session.set({ [RECORD_REQUEST_KEY]: Date.now() }),
+      chrome.sidePanel.open({ tabId }),
+    ]).then(
+      () => sendResponse({ ok: true }),
+      (err: unknown) => {
+        console.error('[SnapSend] record-start failed', err)
+        sendResponse({ ok: false, error: 'Could not open the panel — click the SnapSend icon' })
+      },
+    )
+    return true
   }
   if (msg.type === 'send-draft') {
     sendDraft(msg.channel, msg.phone, msg.caption).then(

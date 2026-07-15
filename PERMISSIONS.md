@@ -22,6 +22,11 @@ commit (CLAUDE.md hard rule; code-review gate G4).
 |---|---|---|
 | `http://*/*`, `https://*/*` | The floating capture bar must exist on every normal page — that is the product. Read-nothing script: it only mounts the bar UI (Shadow DOM) and stores its own position. Web Store domains excluded via `exclude_matches`; browser-internal pages never run content scripts. | Phase 1 (1.2) |
 
+## CSP
+| Directive | Why | Added |
+|---|---|---|
+| `script-src 'self' 'wasm-unsafe-eval'` (extension pages) | Compiles the **bundled** ffmpeg.wasm core (`public/ffmpeg/`) for webm→mp4 conversion. This is local wasm shipped inside the package — NOT remote code; no remote scripts are ever loaded. | Phase 4 (4.2) |
+
 ## Not requested (and why)
 - `tabs` — not needed yet; `activeTab` covers capture. Revisit at Phase 2
   (finding/opening the WhatsApp Web tab) and justify here first.

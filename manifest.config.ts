@@ -16,6 +16,11 @@ export default defineManifest({
   // captureVisibleTab explicitly requires '<all_urls>' (granular http/https
   // patterns are rejected by its permission check) — see PERMISSIONS.md.
   host_permissions: ['<all_urls>'],
+  // wasm-unsafe-eval is required to compile the BUNDLED ffmpeg.wasm core
+  // (local file, not remote code) — see PERMISSIONS.md.
+  content_security_policy: {
+    extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+  },
   action: {
     default_title: 'SnapSend',
   },

@@ -1,5 +1,6 @@
 import { type BarState, getBarState, setBarState } from '../lib/storage'
 import { startSnip } from './snip-overlay'
+import { toast } from './toast'
 
 const HOST_ID = 'snapsend-bar-host'
 
@@ -51,7 +52,7 @@ const HTML = `
   <div class="pill">
     <button class="lens" title="Collapse SnapSend"></button>
     <button class="btn snip" title="Snip a region (Alt+Shift+S)">Snip</button>
-    <button class="btn" disabled title="Recording arrives in a later update">Record</button>
+    <button class="btn record" title="Record your screen (up to 3 min)">Record</button>
     <button class="hide" title="Hide SnapSend on this site">&#10005;</button>
   </div>
 </div>`
@@ -117,6 +118,14 @@ function wireHide(el: HTMLElement, wrap: HTMLElement, host: string, state: BarSt
 
 function wireSnip(wrap: HTMLElement): void {
   wrap.querySelector('.snip')?.addEventListener('click', () => startSnip())
+  wrap.querySelector('.record')?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'record-start' }).then(
+      (res: { ok: boolean; error?: string }) => {
+        if (!res?.ok) toast(res?.error ?? 'Could not open the panel — click the SnapSend icon')
+      },
+      () => toast('Could not open the panel — click the SnapSend icon'),
+    )
+  })
 }
 
 function wireDrag(wrap: HTMLElement, host: string, state: BarState): void {

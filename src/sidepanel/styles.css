@@ -362,6 +362,61 @@ h1 {
   cursor: default;
 }
 
+.rec-card {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.rec-card .hint {
+  margin: 0 0 8px;
+}
+
+.rec-mic {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.rec-count {
+  align-self: center;
+  font: 600 13px/1 system-ui, sans-serif;
+  color: var(--accent);
+}
+
+.rec-stop {
+  border: 1px solid #ff5c5c;
+  color: #ff5c5c;
+  background: none;
+  font: 500 12px/1 system-ui, sans-serif;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rec-result {
+  margin-top: 8px;
+}
+
+.rec-video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+}
+
+.rec-save {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.rec-progress {
+  width: 100%;
+  margin-top: 8px;
+  accent-color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status {
     transition: none;

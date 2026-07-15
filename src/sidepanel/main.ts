@@ -3,8 +3,15 @@
 
 import { createAnnotator, type Annotator, type Tool } from '../lib/annotate'
 import { getHistory, type HistoryEntry } from '../lib/history'
-import { CURRENT_CAPTURE_KEY, type CaptureRecord, type Msg, type SendResult } from '../lib/messages'
+import {
+  CURRENT_CAPTURE_KEY,
+  RECORD_REQUEST_KEY,
+  type CaptureRecord,
+  type Msg,
+  type SendResult,
+} from '../lib/messages'
 import { mountContactsUI, type PickedTarget } from './contacts-ui'
+import { mountRecordUI } from './record-ui'
 
 const app = document.getElementById('app')
 let annotator: Annotator | null = null
@@ -23,11 +30,15 @@ function render(record: CaptureRecord | undefined): void {
   if (!record) {
     app.innerHTML = `<h1>SnapSend</h1>
       <p class="hint">Snip something to get started &#8212; click Snip on the bar or press Alt+Shift+S.</p>
+      <div class="record-host"></div>
+      <p class="status" role="status"></p>
       <div class="history"></div>`
+    showRecordCard()
     renderHistory()
     return
   }
   app.innerHTML = `<h1>SnapSend</h1>
+    <div class="record-host"></div>
     <div class="tools"></div>
     <div class="shot"></div>
     <textarea class="caption" rows="2" placeholder="Caption (e.g. change this to green)"></textarea>
@@ -213,10 +224,17 @@ async function load(): Promise<void> {
   render(found[CURRENT_CAPTURE_KEY] as CaptureRecord | undefined)
 }
 
+function showRecordCard(): void {
+  const host = app?.querySelector<HTMLElement>('.record-host')
+  if (!host || host.childElementCount) return
+  mountRecordUI(host, setStatus)
+}
+
 chrome.storage.session.onChanged.addListener((changes) => {
   if (CURRENT_CAPTURE_KEY in changes) {
     render(changes[CURRENT_CAPTURE_KEY]?.newValue as CaptureRecord | undefined)
   }
+  if (RECORD_REQUEST_KEY in changes) showRecordCard()
 })
 
 load().catch(() => {

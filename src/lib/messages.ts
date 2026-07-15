@@ -12,6 +12,7 @@ export type DraftChannel = 'whatsapp' | 'telegram'
 export type Msg =
   | { type: 'snip-start' }
   | { type: 'snip-capture'; rect: SnipRect; dpr: number }
+  | { type: 'record-start' }
   | { type: 'send-draft'; channel: DraftChannel; phone: string; caption: string }
   | { type: 'inject'; dataUrl: string; caption: string }
 
@@ -30,3 +31,4 @@ export interface CaptureRecord {
 }
 
 export const CURRENT_CAPTURE_KEY = 'ss.current'
+export const RECORD_REQUEST_KEY = 'ss.recordRequest'
