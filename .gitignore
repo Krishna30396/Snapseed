@@ -3,3 +3,7 @@ dist/
 *.local
 .DS_Store
 public/ffmpeg/
+
+# Desktop launcher scripts (Windows-only convenience, not part of the extension)
+*.bat
+WHERE IS EVERYTHING.txt
